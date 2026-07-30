@@ -3,37 +3,53 @@ name: Build Android APK
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Godot
-        uses: chickensoft-games/setup-godot@v1
         with:
-          version: 4.3.0
-          use-dotnet: false
+          lfs: true
 
-      - name: Verify Godot
-        run: godot --version
+      - name: Setup Godot Export Templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/
+          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Verify Environment
+        run: |
+          godot --version
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Import Project
-        run: godot --headless --path . --editor --quit-after 120 || true
-
-      - name: Build Android Export Template
         run: |
-          mkdir -p build/android
-          godot --headless --path . --export-release "Android" build/android/HalcyonExpanse.apk
+          godot --headless --path . --editor --quit-after 120 || true
+
+      - name: Build Android APK
         env:
-          GODOT_ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
-          GODOT_ANDROID_KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
-          GODOT_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          # Generate debug keystore
+          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p build/android
+          godot --headless --path . --export-debug "Android" build/android/HalcyonExpanse.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -43,7 +59,7 @@ jobs:
 
       - name: Release APK
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: "Halcyon Expanse Build ${{ github.run_number }}"

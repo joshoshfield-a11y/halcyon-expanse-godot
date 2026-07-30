@@ -1,0 +1,108 @@
+[gd_scene load_steps=10 format=3 uid="uid://main001"]
+
+[ext_resource type="Script" path="res://src/main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://enemy001" path="res://scenes/enemy.tscn" id="3_enemy"]
+[ext_resource type="PackedScene" uid="uid://tilebase001" path="res://scenes/tile.tscn" id="4_tile"]
+[ext_resource type="Script" path="res://src/core/engine.gd" id="5_engine"]
+[ext_resource type="Script" path="res://src/systems/ability_system.gd" id="6_ability"]
+[ext_resource type="Script" path="res://src/systems/star_system_manager.gd" id="7_star"]
+[ext_resource type="Script" path="res://src/combat/combat_system.gd" id="8_combat"]
+[ext_resource type="Script" path="res://src/ui/hud.gd" id="9_hud"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+player_scene = ExtResource("2_player")
+enemy_scene = ExtResource("3_enemy")
+tile_scene = ExtResource("4_tile")
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="Entities" type="Node3D" parent="."]
+
+[node name="GameEngine" type="Node" parent="."]
+script = ExtResource("5_engine")
+
+[node name="AbilitySystem" type="Node" parent="."]
+script = ExtResource("6_ability")
+
+[node name="StarSystemManager" type="Node" parent="."]
+script = ExtResource("7_star")
+
+[node name="CombatSystem" type="Node" parent="."]
+script = ExtResource("8_combat")
+
+[node name="FactionManager" type="Node" parent="."]
+script = ExtResource("res://src/systems/faction_manager.gd")
+
+[node name="Economy" type="Node" parent="."]
+script = ExtResource("res://src/systems/economy.gd")
+
+[node name="Bestiary" type="Node" parent="."]
+script = ExtResource("res://src/systems/bestiary.gd")
+
+[node name="Codex" type="Node" parent="."]
+script = ExtResource("res://src/systems/codex.gd")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 20, 0)
+shadow_enabled = true
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("9_hud")
+
+[node name="MarginContainer" type="MarginContainer" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/MarginContainer"]
+layout_mode = 2
+
+[node name="HPBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+
+[node name="Label" type="Label" parent="HUD/MarginContainer/VBoxContainer/HPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 5.0
+offset_right = -5.0
+theme_override_font_sizes/font_size = 14
+text = "HP: 100/100"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LCBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+max_value = 1000.0
+value = 500.0
+
+[node name="Label" type="Label" parent="HUD/MarginContainer/VBoxContainer/LCBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 5.0
+offset_right = -5.0
+theme_override_font_sizes/font_size = 14
+text = "LC: 500/1000"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InfoLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Resonance: Ember | Attunement: 1"
+
+[node name="SystemLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "System: VeyraPrime | Year: 706"

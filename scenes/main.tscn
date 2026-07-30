@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://main001"]
+[gd_scene load_steps=11 format=3 uid="uid://main001"]
 
 [ext_resource type="Script" path="res://src/main.gd" id="1_main"]
 [ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player.tscn" id="2_player"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://src/systems/star_system_manager.gd" id="7_star"]
 [ext_resource type="Script" path="res://src/combat/combat_system.gd" id="8_combat"]
 [ext_resource type="Script" path="res://src/ui/hud.gd" id="9_hud"]
+[ext_resource type="Script" path="res://src/ui/mobile_controls.gd" id="10_mobile"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -106,3 +107,104 @@ text = "Resonance: Ember | Attunement: 1"
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "System: VeyraPrime | Year: 706"
+
+[node name="MobileControls" type="CanvasLayer" parent="HUD"]
+script = ExtResource("10_mobile")
+
+[node name="JoystickBase" type="Control" parent="HUD/MobileControls"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = -200.0
+offset_right = 200.0
+offset_bottom = -40.0
+
+[node name="ColorRect" type="ColorRect" parent="HUD/MobileControls/JoystickBase"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(1, 1, 1, 0.2)
+
+[node name="Knob" type="Control" parent="HUD/MobileControls/JoystickBase"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -30.0
+offset_top = -30.0
+offset_right = 30.0
+offset_bottom = 30.0
+
+[node name="ColorRect" type="ColorRect" parent="HUD/MobileControls/JoystickBase/Knob"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(1, 1, 1, 0.5)
+
+[node name="AttackBtn" type="Button" parent="HUD/MobileControls"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -180.0
+offset_top = -180.0
+offset_right = -60.0
+offset_bottom = -60.0
+theme_override_font_sizes/font_size = 24
+text = "ATK"
+
+[node name="AbilityBar" type="HBoxContainer" parent="HUD/MobileControls"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -280.0
+offset_top = -80.0
+offset_right = 280.0
+offset_bottom = -20.0
+alignment = 1
+
+[node name="Btn1" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "1"
+
+[node name="Btn2" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "2"
+
+[node name="Btn3" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "3"
+
+[node name="Btn4" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "4"
+
+[node name="Btn5" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "5"
+
+[node name="Btn6" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "6"
+
+[node name="Btn7" type="Button" parent="HUD/MobileControls/AbilityBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "7"

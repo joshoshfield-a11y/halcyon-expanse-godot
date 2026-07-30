@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3 uid="uid://tilebase001"]
+
+[ext_resource type="Script" path="res://src/world/tile_mesh.gd" id="1_tile"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tile"]
+
+[node name="Tile" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_tile")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_tile")

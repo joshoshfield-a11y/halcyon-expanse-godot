@@ -9,16 +9,17 @@ var ability_sys: AbilitySystem = null
 var attack_cooldown: float = 0.0
 var ability_cooldowns: Dictionary = {}
 var facing: Vector3 = Vector3.FORWARD
+var mobile_controls: MobileControls = null
 
 func _ready():
 	is_player = true
 	name = "Player"
 	add_to_group("player")
-	# Find systems
 	var main = get_node_or_null("/root/Main")
 	if main:
 		combat = main.get_node_or_null("CombatSystem")
 		ability_sys = main.get_node_or_null("AbilitySystem")
+		mobile_controls = main.get_node_or_null("HUD/MobileControls")
 
 func _physics_process(delta):
 	if dead:
@@ -32,6 +33,8 @@ func _physics_process(delta):
 
 func _handle_movement(delta):
 	var input_dir = Vector3.ZERO
+
+	# Keyboard input
 	if Input.is_action_pressed("move_up"):
 		input_dir.z -= 1
 	if Input.is_action_pressed("move_down"):
@@ -41,11 +44,15 @@ func _handle_movement(delta):
 	if Input.is_action_pressed("move_right"):
 		input_dir.x += 1
 
+	# Mobile joystick input
+	if mobile_controls and mobile_controls.joystick_active:
+		input_dir.x += mobile_controls.joystick_vector.x
+		input_dir.z += mobile_controls.joystick_vector.y
+
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
 		facing = input_dir
 		velocity = input_dir * speed
-		# Rotate mesh to face direction
 		if $MeshInstance3D:
 			$MeshInstance3D.rotation.y = atan2(facing.x, facing.z)
 	else:
@@ -61,13 +68,12 @@ func _handle_combat(delta):
 func _perform_melee_attack():
 	if combat == null:
 		return
-	# Raycast or area check for enemies in front
 	var query = PhysicsShapeQueryParameters3D.new()
 	var shape = SphereShape3D.new()
 	shape.radius = 2.0
 	query.shape = shape
 	query.transform = global_transform
-	query.collision_mask = 1 << 2  # Layer 3 (Enemies)
+	query.collision_mask = 1 << 2
 	var space_state = get_world_3d().direct_space_state
 	var results = space_state.intersect_shape(query, 10)
 	for result in results:
@@ -90,7 +96,6 @@ func _handle_abilities(delta):
 					_spawn_cast_effect(aid)
 
 func _spawn_cast_effect(ability_id: String):
-	# Spawn particle effect based on resonance
 	var color = Color.ORANGE
 	match ability_id:
 		"gale_dash": color = Color.LIGHT_BLUE
@@ -99,4 +104,3 @@ func _spawn_cast_effect(ability_id: String):
 		"root_bind": color = Color.FOREST_GREEN
 		"iron_shield": color = Color.GRAY
 		"chorus_blast": color = Color.YELLOW
-	# In a full implementation, instantiate a particle scene here

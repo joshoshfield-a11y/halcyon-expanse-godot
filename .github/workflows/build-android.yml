@@ -1,0 +1,52 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v1
+        with:
+          version: 4.3.0
+          use-dotnet: false
+
+      - name: Verify Godot
+        run: godot --version
+
+      - name: Import Project
+        run: godot --headless --path . --editor --quit-after 120 || true
+
+      - name: Build Android Export Template
+        run: |
+          mkdir -p build/android
+          godot --headless --path . --export-release "Android" build/android/HalcyonExpanse.apk
+        env:
+          GODOT_ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          GODOT_ANDROID_KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
+          GODOT_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: halcyon-expanse-apk
+          path: build/android/*.apk
+
+      - name: Release APK
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "Halcyon Expanse Build ${{ github.run_number }}"
+          files: build/android/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

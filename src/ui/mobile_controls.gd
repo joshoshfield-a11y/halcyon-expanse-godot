@@ -10,8 +10,13 @@ var joystick_active: bool = false
 var joystick_center: Vector2
 var joystick_radius: float = 60.0
 var joystick_vector: Vector2 = Vector2.ZERO
-
 var touch_id: int = -1
+var dash_btn: Button
+var pause_btn: Button
+
+const ABILITY_SHORT: Array = ["EMB", "GAL", "HOL", "TID", "ROT", "IRN", "CHO"]
+const ABILITY_IDS: Array = ["ember_strike", "gale_dash", "hollow_drain", "tide_heal",
+					"root_bind", "iron_shield", "chorus_blast"]
 
 func _ready():
 	joystick_center = joystick_base.global_position + joystick_base.size / 2
@@ -19,10 +24,47 @@ func _ready():
 	for i in range(7):
 		var btn = ability_btns.get_child(i) if i < ability_btns.get_child_count() else null
 		if btn:
+			btn.text = ABILITY_SHORT[i]
 			btn.pressed.connect(_on_ability_pressed.bind(i))
-	# Hide on desktop
+
+	# dash button (code-added so the scene file stays untouched)
+	dash_btn = Button.new()
+	dash_btn.text = "DASH"
+	dash_btn.add_theme_font_size_override("font_size", 22)
+	dash_btn.custom_minimum_size = Vector2(110, 110)
+	dash_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	dash_btn.position = Vector2(-310, -310)
+	dash_btn.pressed.connect(_on_dash_pressed)
+	add_child(dash_btn)
+
+	# pause button
+	pause_btn = Button.new()
+	pause_btn.text = "II"
+	pause_btn.add_theme_font_size_override("font_size", 22)
+	pause_btn.custom_minimum_size = Vector2(64, 64)
+	pause_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	pause_btn.position = Vector2(-84, 20)
+	pause_btn.pressed.connect(_on_pause_pressed)
+	add_child(pause_btn)
+
 	if not OS.has_feature("android") and not OS.has_feature("ios"):
 		visible = false
+
+func _process(delta):
+	# cooldown dimming on ability buttons
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	for i in range(min(7, ability_btns.get_child_count())):
+		var btn = ability_btns.get_child(i)
+		var cd = player.ability_cooldowns.get(ABILITY_IDS[i], 0.0)
+		if cd > 0:
+			btn.modulate = Color(0.4, 0.4, 0.45)
+			btn.text = "%d" % int(ceil(cd))
+		else:
+			btn.modulate = Color(1, 1, 1)
+			btn.text = ABILITY_SHORT[i]
+	dash_btn.modulate = Color(0.5, 0.5, 0.55) if player.dash_cooldown > 0 else Color(1, 1, 1)
 
 func _input(event):
 	if event is InputEventScreenTouch:
@@ -47,9 +89,8 @@ func _is_in_joystick(pos: Vector2) -> bool:
 func _update_knob(pos: Vector2):
 	var dir = pos - joystick_center
 	var dist = min(dir.length(), joystick_radius)
-	joystick_vector = dir.normalized() * (dist / joystick_radius)
-	var knob_pos = joystick_center + dir.normalized() * dist - joystick_knob.size / 2
-	joystick_knob.global_position = knob_pos
+	joystick_vector = dir.normalized() * (dist / joystick_radius) if dir.length() > 0.01 else Vector2.ZERO
+	joystick_knob.global_position = joystick_center + dir.normalized() * dist - joystick_knob.size / 2 if dir.length() > 0.01 else joystick_center - joystick_knob.size / 2
 
 func _on_attack_pressed():
 	Input.action_press("attack")
@@ -61,3 +102,13 @@ func _on_ability_pressed(index: int):
 	Input.action_press(action)
 	await get_tree().create_timer(0.1).timeout
 	Input.action_release(action)
+
+func _on_dash_pressed():
+	var player = get_tree().get_first_node_in_group("player")
+	if player and player.has_method("do_dash"):
+		player.do_dash()
+
+func _on_pause_pressed():
+	Input.action_press("pause_menu")
+	await get_tree().create_timer(0.1).timeout
+	Input.action_release("pause_menu")

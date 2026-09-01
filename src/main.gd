@@ -1,7 +1,6 @@
 extends Node3D
 class_name Main
 
-# flow states
 const FLOW_TITLE = 0
 const FLOW_PLAYING = 1
 const FLOW_PAUSED = 2
@@ -9,7 +8,6 @@ const FLOW_DEAD = 3
 
 @onready var player_scene: PackedScene = preload("res://scenes/player.tscn")
 @onready var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
-@onready var tile_scene: PackedScene = preload("res://scenes/tile.tscn")
 
 var engine: GameEngine
 var state: GameState
@@ -20,22 +18,33 @@ var faction_mgr: FactionManager
 var economy: Economy
 var bestiary: Bestiary
 var codex: Codex
-var world_gen: WorldGenerator
+var terrain: TerrainBuilder
 var hud: HUD
 
-var current_map: Dictionary = {}
+var world_info: Dictionary = {}
+var current_biome: String = "temperate"
 var enemies: Array = []
-var tiles: Array = []
 var flow: int = FLOW_TITLE
 
+# third-person boom camera
 var cam: Camera3D = null
-var cam_offset: Vector3 = Vector3(0, 19, 9)
+var cam_yaw: float = 0.0
+var cam_pitch: float = 0.42
+var cam_dist: float = 8.5
 var shake_trauma: float = 0.0
 var env: Environment
 var world_env: WorldEnvironment
 var light: DirectionalLight3D
 var gate_check_timer: float = 0.0
+var director_timer: float = 0.0
+var bounds_warn_timer: float = 0.0
 var near_gate: bool = false
+
+const ENEMY_TARGET: int = 16
+const ENEMY_SPAWN_MIN: float = 35.0
+const ENEMY_SPAWN_MAX: float = 60.0
+const ENEMY_CULL_DIST: float = 110.0
+const WORLD_BOUND: float = 112.0
 
 var overlay_layer: CanvasLayer
 var title_screen: Control
@@ -48,15 +57,15 @@ var warp_vbox: VBoxContainer
 var death_shown: bool = false
 
 const BIOME_ENV: Dictionary = {
-	"temperate":  {"sky_t": Color(0.25, 0.45, 0.75), "sky_h": Color(0.65, 0.75, 0.85), "gnd": Color(0.2, 0.25, 0.2), "amb": Color(0.55, 0.6, 0.65), "fog": Color(0.4, 0.5, 0.6), "fogd": 0.010, "light": Color(1.0, 0.95, 0.85), "le": 1.1},
-	"volcanic":   {"sky_t": Color(0.12, 0.03, 0.03), "sky_h": Color(0.6, 0.2, 0.08), "gnd": Color(0.1, 0.05, 0.04), "amb": Color(0.5, 0.3, 0.25), "fog": Color(0.35, 0.1, 0.05), "fogd": 0.022, "light": Color(1.0, 0.6, 0.4), "le": 0.9},
-	"river":      {"sky_t": Color(0.2, 0.4, 0.6), "sky_h": Color(0.55, 0.75, 0.8), "gnd": Color(0.15, 0.25, 0.25), "amb": Color(0.5, 0.6, 0.65), "fog": Color(0.3, 0.5, 0.55), "fogd": 0.014, "light": Color(0.95, 1.0, 0.95), "le": 1.05},
-	"void":       {"sky_t": Color(0.02, 0.01, 0.05), "sky_h": Color(0.25, 0.1, 0.4), "gnd": Color(0.05, 0.03, 0.1), "amb": Color(0.35, 0.3, 0.5), "fog": Color(0.15, 0.08, 0.25), "fogd": 0.02, "light": Color(0.6, 0.5, 0.9), "le": 0.7},
-	"marsh":      {"sky_t": Color(0.15, 0.25, 0.2), "sky_h": Color(0.45, 0.55, 0.4), "gnd": Color(0.1, 0.15, 0.1), "amb": Color(0.45, 0.55, 0.45), "fog": Color(0.25, 0.35, 0.25), "fogd": 0.02, "light": Color(0.85, 0.95, 0.75), "le": 0.85},
-	"industrial": {"sky_t": Color(0.2, 0.18, 0.16), "sky_h": Color(0.6, 0.45, 0.3), "gnd": Color(0.15, 0.13, 0.12), "amb": Color(0.55, 0.5, 0.45), "fog": Color(0.3, 0.26, 0.22), "fogd": 0.016, "light": Color(1.0, 0.85, 0.65), "le": 0.95},
-	"crystal":    {"sky_t": Color(0.08, 0.04, 0.16), "sky_h": Color(0.45, 0.2, 0.65), "gnd": Color(0.1, 0.05, 0.18), "amb": Color(0.5, 0.35, 0.6), "fog": Color(0.25, 0.12, 0.4), "fogd": 0.016, "light": Color(0.85, 0.7, 1.0), "le": 0.95},
-	"barren":     {"sky_t": Color(0.35, 0.33, 0.3), "sky_h": Color(0.7, 0.65, 0.55), "gnd": Color(0.25, 0.23, 0.2), "amb": Color(0.6, 0.58, 0.55), "fog": Color(0.45, 0.42, 0.4), "fogd": 0.018, "light": Color(1.0, 0.98, 0.9), "le": 1.0},
-	"reef":       {"sky_t": Color(0.1, 0.3, 0.45), "sky_h": Color(0.4, 0.7, 0.75), "gnd": Color(0.1, 0.25, 0.3), "amb": Color(0.45, 0.6, 0.65), "fog": Color(0.2, 0.45, 0.5), "fogd": 0.016, "light": Color(0.8, 1.0, 0.95), "le": 1.0},
+	"temperate":  {"sky_t": Color(0.25, 0.45, 0.75), "sky_h": Color(0.65, 0.75, 0.85), "gnd": Color(0.2, 0.25, 0.2), "amb": Color(0.55, 0.6, 0.65), "fog": Color(0.4, 0.5, 0.6), "fogd": 0.0045, "light": Color(1.0, 0.95, 0.85), "le": 1.1},
+	"volcanic":   {"sky_t": Color(0.12, 0.03, 0.03), "sky_h": Color(0.6, 0.2, 0.08), "gnd": Color(0.1, 0.05, 0.04), "amb": Color(0.5, 0.3, 0.25), "fog": Color(0.35, 0.1, 0.05), "fogd": 0.009, "light": Color(1.0, 0.6, 0.4), "le": 0.9},
+	"river":      {"sky_t": Color(0.2, 0.4, 0.6), "sky_h": Color(0.55, 0.75, 0.8), "gnd": Color(0.15, 0.25, 0.25), "amb": Color(0.5, 0.6, 0.65), "fog": Color(0.3, 0.5, 0.55), "fogd": 0.006, "light": Color(0.95, 1.0, 0.95), "le": 1.05},
+	"void":       {"sky_t": Color(0.02, 0.01, 0.05), "sky_h": Color(0.25, 0.1, 0.4), "gnd": Color(0.05, 0.03, 0.1), "amb": Color(0.35, 0.3, 0.5), "fog": Color(0.15, 0.08, 0.25), "fogd": 0.008, "light": Color(0.6, 0.5, 0.9), "le": 0.7},
+	"marsh":      {"sky_t": Color(0.15, 0.25, 0.2), "sky_h": Color(0.45, 0.55, 0.4), "gnd": Color(0.1, 0.15, 0.1), "amb": Color(0.45, 0.55, 0.45), "fog": Color(0.25, 0.35, 0.25), "fogd": 0.008, "light": Color(0.85, 0.95, 0.75), "le": 0.85},
+	"industrial": {"sky_t": Color(0.2, 0.18, 0.16), "sky_h": Color(0.6, 0.45, 0.3), "gnd": Color(0.15, 0.13, 0.12), "amb": Color(0.55, 0.5, 0.45), "fog": Color(0.3, 0.26, 0.22), "fogd": 0.007, "light": Color(1.0, 0.85, 0.65), "le": 0.95},
+	"crystal":    {"sky_t": Color(0.08, 0.04, 0.16), "sky_h": Color(0.45, 0.2, 0.65), "gnd": Color(0.1, 0.05, 0.18), "amb": Color(0.5, 0.35, 0.6), "fog": Color(0.25, 0.12, 0.4), "fogd": 0.006, "light": Color(0.85, 0.7, 1.0), "le": 0.95},
+	"barren":     {"sky_t": Color(0.35, 0.33, 0.3), "sky_h": Color(0.7, 0.65, 0.55), "gnd": Color(0.25, 0.23, 0.2), "amb": Color(0.6, 0.58, 0.55), "fog": Color(0.45, 0.42, 0.4), "fogd": 0.007, "light": Color(1.0, 0.98, 0.9), "le": 1.0},
+	"reef":       {"sky_t": Color(0.1, 0.3, 0.45), "sky_h": Color(0.4, 0.7, 0.75), "gnd": Color(0.1, 0.25, 0.3), "amb": Color(0.45, 0.6, 0.65), "fog": Color(0.2, 0.45, 0.5), "fogd": 0.006, "light": Color(0.8, 1.0, 0.95), "le": 1.0},
 }
 
 func _ready():
@@ -64,10 +73,8 @@ func _ready():
 	randomize()
 	_init_systems()
 	_init_environment()
-	_generate_world()
+	_build_world()
 	_spawn_player()
-	_spawn_enemies()
-	_spawn_item_pickups()
 	_init_hud()
 	_init_camera()
 	_build_overlays()
@@ -84,14 +91,15 @@ func _init_systems():
 	economy = $Economy
 	bestiary = $Bestiary
 	codex = $Codex
-	world_gen = WorldGenerator.new(randi())
 
 func _init_environment():
 	world_env = WorldEnvironment.new()
 	env = Environment.new()
-	env.background_mode = Environment.BG_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.fog_enabled = true
+	env.glow_enabled = true
+	env.glow_intensity = 0.5
+	env.glow_bloom = 0.08
 	world_env.environment = env
 	add_child(world_env)
 	light = $DirectionalLight3D
@@ -110,9 +118,6 @@ func _apply_biome_env(biome: String):
 	sky.sky_material = sm
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_bloom = 0.08
 	env.ambient_light_color = spec["amb"]
 	env.ambient_light_energy = 0.7
 	env.fog_light_color = spec["fog"]
@@ -121,65 +126,67 @@ func _apply_biome_env(biome: String):
 		light.light_color = spec["light"]
 		light.light_energy = spec["le"]
 
-func _generate_world():
+# ---------------- open world ----------------
+
+func _build_world():
+	for t in get_tree().get_nodes_in_group("terrain"):
+		t.queue_free()
 	var sys_name = star_systems.current_system
 	var sys_data = star_systems.get_system_data(sys_name)
-	var biome = sys_data.get("biome", "temperate")
-	current_map = world_gen.generate_system(sys_name, biome)
-	_apply_biome_env(biome)
-
-	for t in tiles:
-		if is_instance_valid(t):
-			t.queue_free()
-	tiles.clear()
-
-	var tile_size = world_gen.tile_size
-	for y in range(current_map["height"]):
-		for x in range(current_map["width"]):
-			var tile_type = current_map["tiles"][y][x]
-			var tile = tile_scene.instantiate()
-			tile.position = Vector3(x * tile_size, 0, y * tile_size)
-			tile.setup(tile_type, biome)
-			$World.add_child(tile)
-			tiles.append(tile)
+	current_biome = sys_data.get("biome", "temperate")
+	terrain = TerrainBuilder.new(randi())
+	world_info = terrain.build(self, current_biome)
+	_apply_biome_env(current_biome)
+	for ipos in world_info.get("items", []):
+		Pickup.spawn(self, ipos, "lc", 80.0)
 
 func _spawn_player():
-	var spawn = current_map["spawn_points"][0]
-	var pos = world_gen.grid_to_world(spawn)
 	var player = player_scene.instantiate()
-	player.position = pos + Vector3(0, 1.1, 0)
+	player.position = world_info["spawn"]
 	$Entities.add_child(player)
 	state.add_entity(player)
 	player.resonance = "Ember"
 	player.attunement = 1
 	player.lattice_charge = 500.0
 
-func _spawn_enemies():
-	for espawn in current_map.get("enemy_spawns", []):
-		if randf() < 0.6:
-			var pos = world_gen.grid_to_world(espawn)
-			var enemy = enemy_scene.instantiate()
-			enemy.position = pos + Vector3(0, 1.1, 0)
-			var types = ["Ash Wraith", "Hollow Stalker", "Iron Drone", "Tide Serpent", "Chorus Knight", "Swarm Mite"]
-			enemy.enemy_type = types[randi() % types.size()]
-			var entry = bestiary.get_entry(enemy.enemy_type)
-			enemy.hp = entry.get("hp", 80)
-			enemy.max_hp = enemy.hp
-			enemy.damage = entry.get("damage", 12)
-			enemy.behavior_pattern = entry.get("pattern", "phase_cycle")
-			if randf() < 0.12:
-				enemy.make_elite()
-			$Entities.add_child(enemy)
-			enemies.append(enemy)
-			state.add_entity(enemy)
+func _spawn_enemy_at(pos: Vector3) -> Enemy:
+	var enemy = enemy_scene.instantiate()
+	enemy.position = pos
+	var types = ["Ash Wraith", "Hollow Stalker", "Iron Drone", "Tide Serpent", "Chorus Knight", "Swarm Mite"]
+	enemy.enemy_type = types[randi() % types.size()]
+	var entry = bestiary.get_entry(enemy.enemy_type)
+	enemy.hp = entry.get("hp", 80)
+	enemy.max_hp = enemy.hp
+	enemy.damage = entry.get("damage", 12)
+	enemy.behavior_pattern = entry.get("pattern", "phase_cycle")
+	if randf() < 0.12:
+		enemy.make_elite()
+	$Entities.add_child(enemy)
+	enemies.append(enemy)
+	state.add_entity(enemy)
+	return enemy
 
-func _spawn_item_pickups():
-	var count = 0
-	for ispawn in current_map.get("item_spawns", []):
-		if count >= 12:
-			break
-		Pickup.spawn(self, world_gen.grid_to_world(ispawn), "lc", 80.0)
-		count += 1
+func _enemy_director():
+	if state.player == null:
+		return
+	var pp = state.player.global_position
+	# cull far
+	for i in range(enemies.size() - 1, -1, -1):
+		var e = enemies[i]
+		if not is_instance_valid(e):
+			enemies.remove_at(i)
+		elif e.global_position.distance_to(pp) > ENEMY_CULL_DIST:
+			e.queue_free()
+			state.remove_entity(e)
+			enemies.remove_at(i)
+	# spawn to target density
+	var deficit = ENEMY_TARGET - enemies.size()
+	for i in range(min(deficit, 3)):
+		var a = randf() * TAU
+		var d = randf_range(ENEMY_SPAWN_MIN, ENEMY_SPAWN_MAX)
+		var x = clamp(pp.x + sin(a) * d, -WORLD_BOUND, WORLD_BOUND)
+		var z = clamp(pp.z + cos(a) * d, -WORLD_BOUND, WORLD_BOUND)
+		_spawn_enemy_at(Vector3(x, terrain.height_at(x, z) + 1.2, z))
 
 func _init_hud():
 	hud = $HUD
@@ -191,15 +198,17 @@ func _init_camera():
 	if player:
 		var c = player.get_node_or_null("Camera3D")
 		if c:
-			player.remove_child(c)
-			add_child(c)
-			cam = c
-	if cam == null:
-		cam = Camera3D.new()
-		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-		cam.size = 20.0
-		add_child(cam)
+			c.queue_free()
+	cam = Camera3D.new()
+	cam.fov = 70.0
 	cam.current = true
+	add_child(cam)
+	if player:
+		cam_yaw = 0.0
+		cam.global_position = player.global_position + Vector3(0, 4, 8)
+
+func get_cam_forward() -> Vector3:
+	return Vector3(-sin(cam_yaw), 0, -cos(cam_yaw)).normalized()
 
 func add_shake(amount: float):
 	shake_trauma = min(shake_trauma + amount, 1.0)
@@ -210,23 +219,42 @@ func hit_stop(dur: float = 0.06, scale: float = 0.15):
 	if not get_tree().paused:
 		Engine.time_scale = 1.0
 
-func zoom_punch(amount: float = 2.5, dur: float = 0.4):
+func zoom_punch(amount: float = 8.0, dur: float = 0.4):
 	if cam == null:
 		return
 	var tw = cam.create_tween()
-	tw.tween_property(cam, "size", 20.0 - amount, dur * 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(cam, "size", 20.0, dur * 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(cam, "fov", 70.0 - amount, dur * 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cam, "fov", 70.0, dur * 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 
 func _update_camera(delta):
 	if cam == null or state.player == null:
 		return
-	var target = state.player.global_position + cam_offset
-	cam.global_position = cam.global_position.lerp(target, 6.0 * delta)
-	cam.look_at(state.player.global_position + Vector3(0, 0.5, 0))
+	# consume look input (right-half touch drag / desktop right-drag)
+	var mc = get_node_or_null("HUD/MobileControls")
+	if mc:
+		var ld = mc.consume_look_delta()
+		cam_yaw -= ld.x * 0.006
+		cam_pitch = clamp(cam_pitch + ld.y * 0.0045, -0.1, 1.15)
+	var pivot = state.player.global_position + Vector3(0, 1.7, 0)
+	var off = Vector3(sin(cam_yaw) * cos(cam_pitch), sin(cam_pitch), cos(cam_yaw) * cos(cam_pitch)) * cam_dist
+	var desired = pivot + off
+	# pull in when terrain/props block the view
+	var space = get_world_3d().direct_space_state
+	var query = PhysicsRayQueryParameters3D.create(pivot, desired, 1)
+	var hit = space.intersect_ray(query)
+	if hit:
+		desired = pivot + (hit["position"] - pivot) * 0.85
+	cam.global_position = cam.global_position.lerp(desired, min(12.0 * delta, 1.0))
+	cam.look_at(pivot)
 	if shake_trauma > 0.001:
 		shake_trauma = max(shake_trauma - delta * 1.6, 0.0)
-		var s = shake_trauma * shake_trauma * 0.9
+		var s = shake_trauma * shake_trauma * 0.5
 		cam.global_position += Vector3(randf_range(-s, s), randf_range(-s, s), randf_range(-s, s))
+
+func _unhandled_input(event):
+	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		cam_yaw -= event.relative.x * 0.005
+		cam_pitch = clamp(cam_pitch + event.relative.y * 0.004, -0.1, 1.15)
 
 # ---------------- UI overlays (container-centered, resolution-independent) ----------------
 
@@ -344,8 +372,7 @@ func _show_title():
 func _on_start_pressed():
 	title_screen.visible = false
 	flow = FLOW_PLAYING
-	var biome = current_map.get("biome", "temperate")
-	show_banner(star_systems.current_system.to_upper(), biome + " reaches")
+	show_banner(star_systems.current_system.to_upper(), current_biome + " reaches")
 
 func _on_resume_pressed():
 	get_tree().paused = false
@@ -367,9 +394,7 @@ func _restart_system():
 	enemies.clear()
 	for pk in get_tree().get_nodes_in_group("pickups"):
 		pk.queue_free()
-	_generate_world()
-	_spawn_enemies()
-	_spawn_item_pickups()
+	_build_world()
 	_respawn_player()
 
 func _respawn_player():
@@ -380,8 +405,7 @@ func _respawn_player():
 	p.hp = p.max_hp
 	p.lattice_charge = 300.0
 	p.shield_active = false
-	var spawn = current_map["spawn_points"][0]
-	p.global_position = world_gen.grid_to_world(spawn) + Vector3(0, 1.1, 0)
+	p.global_position = world_info["spawn"]
 	p.velocity = Vector3.ZERO
 	p.vy = 0.0
 	death_shown = false
@@ -423,18 +447,13 @@ func _process(delta):
 	if state.player == null:
 		return
 
-	# pause toggle
 	if Input.is_action_just_pressed("pause_menu") and not warp_menu.visible:
-		if get_tree().paused:
-			_on_resume_pressed()
-		else:
-			get_tree().paused = true
-			pause_screen.visible = true
+		get_tree().paused = true
+		pause_screen.visible = true
 		return
 
 	var player = state.player
 
-	# player death
 	if player.dead and not death_shown:
 		death_shown = true
 		var dl = death_screen.get_node_or_null("DeathStats")
@@ -446,6 +465,16 @@ func _process(delta):
 	if player.dead:
 		return
 
+	# world bounds — the Hollow thickens
+	var pd = Vector2(player.global_position.x, player.global_position.z).length()
+	if pd > WORLD_BOUND:
+		var back = Vector3(player.global_position.x, 0, player.global_position.z).normalized()
+		player.global_position -= back * (pd - WORLD_BOUND)
+		bounds_warn_timer -= delta
+		if bounds_warn_timer <= 0:
+			bounds_warn_timer = 6.0
+			show_banner("THE HOLLOW THICKENS", "turn back")
+
 	# enemy behaviour + attacks
 	for e in enemies:
 		if is_instance_valid(e) and not e.dead:
@@ -453,9 +482,10 @@ func _process(delta):
 			if e.global_position.distance_to(player.global_position) < e.attack_range and e.attack_cooldown <= 0:
 				e.attack_cooldown = 1.5
 				var dmg = combat_sys.enemy_attack(e, player)
-				Juice.damage_text(self, player.global_position, str(dmg), Color(1, 0.35, 0.3))
-				Juice.burst(self, player.global_position + Vector3(0, 1, 0), Color(1, 0.3, 0.25), 8, 3.5, 0.3, 0.07)
-				add_shake(0.3)
+				if dmg > 0:
+					Juice.damage_text(self, player.global_position, str(dmg), Color(1, 0.35, 0.3))
+					Juice.burst(self, player.global_position + Vector3(0, 1, 0), Color(1, 0.3, 0.25), 8, 3.5, 0.3, 0.07)
+					add_shake(0.3)
 
 	# enemy separation (soft-body crowd, no stacking)
 	for i2 in range(enemies.size()):
@@ -486,22 +516,25 @@ func _process(delta):
 				player.kills += 1
 				if e.is_elite:
 					hit_stop(0.1, 0.08)
-					zoom_punch(2.5, 0.4)
+					zoom_punch(10.0, 0.4)
 			enemies.remove_at(i)
+
+	# enemy director keeps the world populated
+	director_timer -= delta
+	if director_timer <= 0:
+		director_timer = 1.2
+		_enemy_director()
 
 	# gate proximity → warp prompt
 	gate_check_timer -= delta
 	if gate_check_timer <= 0:
 		gate_check_timer = 0.25
 		near_gate = false
-		for g in current_map.get("gates", []):
-			var gw = world_gen.grid_to_world(g)
-			if player.global_position.distance_to(gw) < 3.2:
+		for g in world_info.get("gates", []):
+			if player.global_position.distance_to(g) < 4.5:
 				near_gate = true
 				break
 		warp_button.visible = near_gate
-
-	# keyboard gate interaction
 	if near_gate and Input.is_action_just_pressed("interact"):
 		_open_warp_menu()
 
@@ -513,12 +546,9 @@ func warp_to_system(target: String):
 		enemies.clear()
 		for pk in get_tree().get_nodes_in_group("pickups"):
 			pk.queue_free()
-		_generate_world()
-		_spawn_enemies()
-		_spawn_item_pickups()
+		_build_world()
 		if state.player:
-			var spawn = current_map["spawn_points"][0]
-			state.player.global_position = world_gen.grid_to_world(spawn) + Vector3(0, 1.1, 0)
+			state.player.global_position = world_info["spawn"]
 			state.player.velocity = Vector3.ZERO
 			state.player.vy = 0.0
 			Juice.ring(self, state.player.global_position, Color(0.2, 0.8, 1.0), 7.0, 0.7)

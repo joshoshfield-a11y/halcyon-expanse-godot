@@ -11,6 +11,9 @@ var joystick_center: Vector2
 var joystick_radius: float = 60.0
 var joystick_vector: Vector2 = Vector2.ZERO
 var touch_id: int = -1
+var look_id: int = -1
+var look_last: Vector2 = Vector2.ZERO
+var look_accum: Vector2 = Vector2.ZERO
 var dash_btn: Button
 var pause_btn: Button
 
@@ -66,6 +69,11 @@ func _process(delta):
 			btn.text = ABILITY_SHORT[i]
 	dash_btn.modulate = Color(0.5, 0.5, 0.55) if player.dash_cooldown > 0 else Color(1, 1, 1)
 
+func consume_look_delta() -> Vector2:
+	var d = look_accum
+	look_accum = Vector2.ZERO
+	return d
+
 func _input(event):
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -73,15 +81,23 @@ func _input(event):
 				joystick_active = true
 				touch_id = event.index
 				_update_knob(event.position)
+			elif event.position.x > get_viewport().get_visible_rect().size.x * 0.5 and look_id == -1:
+				look_id = event.index
+				look_last = event.position
 		else:
 			if event.index == touch_id:
 				joystick_active = false
 				touch_id = -1
 				joystick_vector = Vector2.ZERO
 				joystick_knob.position = joystick_base.size / 2 - joystick_knob.size / 2
+			if event.index == look_id:
+				look_id = -1
 	elif event is InputEventScreenDrag:
 		if event.index == touch_id and joystick_active:
 			_update_knob(event.position)
+		elif event.index == look_id:
+			look_accum += event.position - look_last
+			look_last = event.position
 
 func _is_in_joystick(pos: Vector2) -> bool:
 	return pos.distance_to(joystick_center) < joystick_radius * 2

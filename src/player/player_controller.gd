@@ -147,6 +147,9 @@ func _handle_movement(delta):
 	var planar = Vector3.ZERO
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
+		var main = get_node_or_null("/root/Main")
+		if main:
+			input_dir = input_dir.rotated(Vector3.UP, main.cam_yaw)
 		facing = input_dir
 		planar = input_dir * speed
 		var mi = get_node_or_null("MeshInstance3D")
@@ -203,6 +206,11 @@ func _handle_combat(delta):
 
 func _perform_melee_attack():
 	var main = get_node_or_null("/root/Main")
+	if main:
+		facing = main.get_cam_forward()
+		var mi0 = get_node_or_null("MeshInstance3D")
+		if mi0:
+			mi0.rotation.y = atan2(facing.x, facing.z)
 	_attack_arc_visual()
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	var hit_any = false

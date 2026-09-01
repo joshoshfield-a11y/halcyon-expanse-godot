@@ -44,6 +44,7 @@ var death_screen: Control
 var warp_menu: Control
 var warp_button: Button
 var banner_label: Label
+var warp_vbox: VBoxContainer
 var death_shown: bool = false
 
 const BIOME_ENV: Dictionary = {
@@ -201,7 +202,7 @@ func _update_camera(delta):
 		var s = shake_trauma * shake_trauma * 0.9
 		cam.global_position += Vector3(randf_range(-s, s), randf_range(-s, s), randf_range(-s, s))
 
-# ---------------- UI overlays (built in code, no scene edits) ----------------
+# ---------------- UI overlays (container-centered, resolution-independent) ----------------
 
 func _mk_full_rect(parent: Node, color: Color) -> ColorRect:
 	var r = ColorRect.new()
@@ -210,34 +211,41 @@ func _mk_full_rect(parent: Node, color: Color) -> ColorRect:
 	parent.add_child(r)
 	return r
 
-func _mk_label(parent: Node, text: String, size: int, pos: Vector2, center: bool = true) -> Label:
+func _mk_label(parent: Node, text: String, size: int) -> Label:
 	var l = Label.new()
 	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
 	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
 	l.add_theme_constant_override("shadow_offset_x", 3)
 	l.add_theme_constant_override("shadow_offset_y", 3)
-	l.position = pos
-	if center:
-		l.set_anchors_preset(Control.PRESET_CENTER_TOP)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.position = Vector2(pos.x - 400, pos.y)
-		l.size = Vector2(800, size * 2)
 	parent.add_child(l)
 	return l
 
-func _mk_button(parent: Node, text: String, pos: Vector2, cb: Callable) -> Button:
+func _mk_button(parent: Node, text: String, cb: Callable) -> Button:
 	var b = Button.new()
 	b.text = text
 	b.add_theme_font_size_override("font_size", 30)
-	b.custom_minimum_size = Vector2(320, 70)
-	b.position = pos
-	b.set_anchors_preset(Control.PRESET_CENTER)
-	b.position = Vector2(pos.x - 160, pos.y - 35)
+	b.custom_minimum_size = Vector2(340, 72)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	b.pressed.connect(cb)
 	parent.add_child(b)
 	return b
+
+func _mk_screen(tint: Color) -> Dictionary:
+	var screen = Control.new()
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay_layer.add_child(screen)
+	_mk_full_rect(screen, tint)
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(center)
+	var vbox = VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 28)
+	center.add_child(vbox)
+	return {"screen": screen, "vbox": vbox}
 
 func _build_overlays():
 	overlay_layer = CanvasLayer.new()
@@ -245,59 +253,44 @@ func _build_overlays():
 	overlay_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(overlay_layer)
 
-	var vp = get_viewport().get_visible_rect().size
-	var cx = vp.x / 2
-	var cy = vp.y / 2
+	var t = _mk_screen(Color(0.04, 0.03, 0.07, 0.92))
+	title_screen = t["screen"]
+	_mk_label(t["vbox"], "HALCYON EXPANSE", 72)
+	_mk_label(t["vbox"], "lattice · resonance · the hollow", 26)
+	_mk_button(t["vbox"], "ENTER THE EXPANSE", _on_start_pressed)
+	_mk_label(t["vbox"], "stick move · ATK attack · buttons 1-7 abilities · DASH", 18)
 
-	# --- title ---
-	title_screen = Control.new()
-	title_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay_layer.add_child(title_screen)
-	_mk_full_rect(title_screen, Color(0.04, 0.03, 0.07, 0.92))
-	_mk_label(title_screen, "HALCYON EXPANSE", 72, Vector2(cx, cy - 220))
-	_mk_label(title_screen, "lattice · resonance · the hollow", 26, Vector2(cx, cy - 130))
-	_mk_button(title_screen, "ENTER THE EXPANSE", Vector2(cx, cy + 20), _on_start_pressed)
-	_mk_label(title_screen, "WASD / left stick move · ATK / space attack · 1-7 abilities · shift dash", 18, Vector2(cx, cy + 130))
-
-	# --- pause ---
-	pause_screen = Control.new()
-	pause_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var p = _mk_screen(Color(0.02, 0.02, 0.04, 0.8))
+	pause_screen = p["screen"]
 	pause_screen.visible = false
-	overlay_layer.add_child(pause_screen)
-	_mk_full_rect(pause_screen, Color(0.02, 0.02, 0.04, 0.8))
-	_mk_label(pause_screen, "PAUSED", 56, Vector2(cx, cy - 160))
-	_mk_button(pause_screen, "RESUME", Vector2(cx, cy - 20), _on_resume_pressed)
-	_mk_button(pause_screen, "RESTART SYSTEM", Vector2(cx, cy + 80), _on_restart_pressed)
+	_mk_label(p["vbox"], "PAUSED", 56)
+	_mk_button(p["vbox"], "RESUME", _on_resume_pressed)
+	_mk_button(p["vbox"], "RESTART SYSTEM", _on_restart_pressed)
 
-	# --- death ---
-	death_screen = Control.new()
-	death_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var d = _mk_screen(Color(0.1, 0.02, 0.03, 0.85))
+	death_screen = d["screen"]
 	death_screen.visible = false
-	overlay_layer.add_child(death_screen)
-	_mk_full_rect(death_screen, Color(0.1, 0.02, 0.03, 0.85))
-	_mk_label(death_screen, "THE HOLLOW TAKES YOU", 52, Vector2(cx, cy - 180))
-	var dl = _mk_label(death_screen, "", 26, Vector2(cx, cy - 90))
+	_mk_label(d["vbox"], "THE HOLLOW TAKES YOU", 52)
+	var dl = _mk_label(d["vbox"], "", 26)
 	dl.name = "DeathStats"
-	_mk_button(death_screen, "RISE AGAIN", Vector2(cx, cy + 20), _on_respawn_pressed)
+	_mk_button(d["vbox"], "RISE AGAIN", _on_respawn_pressed)
 
-	# --- warp menu ---
-	warp_menu = Control.new()
-	warp_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var w = _mk_screen(Color(0.02, 0.05, 0.08, 0.85))
+	warp_menu = w["screen"]
 	warp_menu.visible = false
-	overlay_layer.add_child(warp_menu)
-	_mk_full_rect(warp_menu, Color(0.02, 0.05, 0.08, 0.85))
-	_mk_label(warp_menu, "SEAM GATE — CHOOSE DESTINATION", 36, Vector2(cx, cy - 200))
+	warp_vbox = w["vbox"]
+	_mk_label(warp_vbox, "SEAM GATE — CHOOSE DESTINATION", 36)
 
-	# --- warp prompt button ---
 	warp_button = Button.new()
 	warp_button.text = "WARP"
-	warp_button.add_theme_font_size_override("font_size", 26)
-	warp_button.custom_minimum_size = Vector2(200, 60)
+	warp_button.add_theme_font_size_override("font_size", 28)
+	warp_button.custom_minimum_size = Vector2(240, 70)
+	warp_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	warp_button.position = Vector2(-120, -320)
 	warp_button.visible = false
 	warp_button.pressed.connect(_on_warp_button)
 	overlay_layer.add_child(warp_button)
 
-	# --- banner ---
 	banner_label = Label.new()
 	banner_label.add_theme_font_size_override("font_size", 44)
 	banner_label.add_theme_color_override("font_color", Color(1, 0.95, 0.7))
@@ -305,9 +298,9 @@ func _build_overlays():
 	banner_label.add_theme_constant_override("shadow_offset_x", 3)
 	banner_label.add_theme_constant_override("shadow_offset_y", 3)
 	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	banner_label.position = Vector2(cx - 500, 90)
-	banner_label.size = Vector2(1000, 120)
+	banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner_label.offset_top = 80
+	banner_label.offset_bottom = 260
 	banner_label.modulate.a = 0.0
 	overlay_layer.add_child(banner_label)
 
@@ -371,21 +364,15 @@ func _on_warp_button():
 	_open_warp_menu()
 
 func _open_warp_menu():
-	# clear old destination buttons
-	for ch in warp_menu.get_children():
+	for ch in warp_vbox.get_children():
 		if ch is Button:
 			ch.queue_free()
-	var vp = get_viewport().get_visible_rect().size
-	var cx = vp.x / 2
-	var cy = vp.y / 2
 	var targets = star_systems.get_available_warp_targets()
-	var i = 0
 	for t in targets:
 		var data = star_systems.get_system_data(t)
 		var label = "%s  (%s · danger %d)" % [t, data.get("biome", "?"), data.get("danger", 1)]
-		_mk_button(warp_menu, label, Vector2(cx, cy - 100 + i * 90), _on_warp_pick.bind(t))
-		i += 1
-	_mk_button(warp_menu, "CANCEL", Vector2(cx, cy - 100 + i * 90), _on_warp_cancel)
+		_mk_button(warp_vbox, label, _on_warp_pick.bind(t))
+	_mk_button(warp_vbox, "CANCEL", _on_warp_cancel)
 	warp_menu.visible = true
 	get_tree().paused = true
 
@@ -466,9 +453,6 @@ func _process(delta):
 				near_gate = true
 				break
 		warp_button.visible = near_gate
-		if near_gate:
-			var vp = get_viewport().get_visible_rect().size
-			warp_button.position = Vector2(vp.x / 2 - 100, vp.y * 0.62)
 
 	# keyboard gate interaction
 	if near_gate and Input.is_action_just_pressed("interact"):

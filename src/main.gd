@@ -91,7 +91,6 @@ func _init_environment():
 	env.background_mode = Environment.BG_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.fog_enabled = true
-	env.fog_mode = Environment.FOG_EXPONENTIAL
 	world_env.environment = env
 	add_child(world_env)
 	light = $DirectionalLight3D

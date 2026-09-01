@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://main001"]
+[gd_scene load_steps=15 format=3 uid="uid://main001"]
 
 [ext_resource type="Script" path="res://src/main.gd" id="1_main"]
 [ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player.tscn" id="2_player"]
@@ -10,6 +10,10 @@
 [ext_resource type="Script" path="res://src/combat/combat_system.gd" id="8_combat"]
 [ext_resource type="Script" path="res://src/ui/hud.gd" id="9_hud"]
 [ext_resource type="Script" path="res://src/ui/mobile_controls.gd" id="10_mobile"]
+[ext_resource type="Script" path="res://src/systems/faction_manager.gd" id="11_faction"]
+[ext_resource type="Script" path="res://src/systems/economy.gd" id="12_economy"]
+[ext_resource type="Script" path="res://src/systems/bestiary.gd" id="13_bestiary"]
+[ext_resource type="Script" path="res://src/systems/codex.gd" id="14_codex"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -34,16 +38,16 @@ script = ExtResource("7_star")
 script = ExtResource("8_combat")
 
 [node name="FactionManager" type="Node" parent="."]
-script = ExtResource("res://src/systems/faction_manager.gd")
+script = ExtResource("11_faction")
 
 [node name="Economy" type="Node" parent="."]
-script = ExtResource("res://src/systems/economy.gd")
+script = ExtResource("12_economy")
 
 [node name="Bestiary" type="Node" parent="."]
-script = ExtResource("res://src/systems/bestiary.gd")
+script = ExtResource("13_bestiary")
 
 [node name="Codex" type="Node" parent="."]
-script = ExtResource("res://src/systems/codex.gd")
+script = ExtResource("14_codex")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 20, 0)

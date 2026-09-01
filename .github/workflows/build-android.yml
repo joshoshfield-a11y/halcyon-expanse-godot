@@ -5,6 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: android-build
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -13,8 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - name: Setup Godot Export Templates
         run: |
@@ -30,6 +35,18 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install SDK components (platform-tools, android-34, build-tools)
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          ls "$ANDROID_HOME/build-tools"
+
+      - name: Point Godot at the Android SDK
+        run: |
+          mkdir -p ~/.config/godot
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\n' "$ANDROID_HOME" > ~/.config/godot/editor_settings-4.3.tres
+          cat ~/.config/godot/editor_settings-4.3.tres
+
       - name: Verify Environment
         run: |
           godot --version
@@ -37,8 +54,20 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Import Project
+        run: godot --headless --path . --import
+
+      - name: Smoke Test (headless boot of main scene)
         run: |
-          godot --headless --path . --editor --quit-after 120 || true
+          timeout 180 godot --headless --path . --quit-after 90 2>&1 | tee smoke.log || true
+          if grep -E "SCRIPT ERROR|Parse error|Failed to load script" smoke.log; then
+            echo "::error::Game scripts failed during headless boot"
+            exit 1
+          fi
+          if ! grep -q "Halcyon Expanse initialized" smoke.log; then
+            echo "::error::Main scene did not initialize"
+            exit 1
+          fi
+          echo "Boot OK: main scene ran clean for 90 frames"
 
       - name: Build Android APK
         env:
@@ -46,23 +75,24 @@ jobs:
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
-          # Generate debug keystore
           keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p build/android
           godot --headless --path . --export-debug "Android" build/android/HalcyonExpanse.apk
+          ls -la build/android/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: halcyon-expanse-apk
           path: build/android/*.apk
+          if-no-files-found: error
 
       - name: Release APK
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: "Halcyon Expanse Build ${{ github.run_number }}"
           files: build/android/*.apk
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

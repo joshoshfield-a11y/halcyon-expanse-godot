@@ -16,7 +16,11 @@ var dash_cooldown: float = 0.0
 var dash_time: float = 0.0
 var dash_dir: Vector3 = Vector3.ZERO
 var shield_bubble: MeshInstance3D = null
+var vy: float = 0.0
+var ghost_timer: float = 0.0
+var breathe_t: float = 0.0
 
+const GRAVITY: float = 22.0
 const DASH_SPEED: float = 18.0
 const DASH_DURATION: float = 0.22
 const DASH_CD: float = 1.6
@@ -33,6 +37,7 @@ func xp_next() -> int:
 	return 80 + level * 70
 
 func _ready():
+	floor_snap_length = 0.4
 	is_player = true
 	name = "Player"
 	add_to_group("player")
@@ -54,6 +59,41 @@ func _restyle():
 		mat.metallic = 0.3
 		mat.roughness = 0.5
 		mi.material_override = mat
+		_add_model_parts(mi)
+
+func _add_model_parts(mi: MeshInstance3D):
+	# visor
+	var visor = MeshInstance3D.new()
+	var vb = BoxMesh.new()
+	vb.size = Vector3(0.55, 0.16, 0.1)
+	visor.mesh = vb
+	var vm = StandardMaterial3D.new()
+	vm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	vm.albedo_color = Color(0.4, 0.95, 1.0)
+	vm.emission_enabled = true
+	vm.emission = Color(0.3, 0.9, 1.0)
+	vm.emission_energy_multiplier = 2.5
+	visor.material_override = vm
+	mi.add_child(visor)
+	visor.position = Vector3(0, 0.55, 0.42)
+	# lattice trim ring at the waist
+	var ring = MeshInstance3D.new()
+	var tr = TorusMesh.new()
+	tr.inner_radius = 0.5
+	tr.outer_radius = 0.62
+	tr.rings = 24
+	tr.ring_segments = 6
+	ring.mesh = tr
+	var rm = StandardMaterial3D.new()
+	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rm.albedo_color = Color(1.0, 0.6, 0.15)
+	rm.emission_enabled = true
+	rm.emission = Color(1.0, 0.5, 0.1)
+	rm.emission_energy_multiplier = 1.8
+	ring.material_override = rm
+	mi.add_child(ring)
+	ring.position = Vector3(0, -0.1, 0)
+	ring.rotation.x = PI / 2
 
 func _is_playing() -> bool:
 	var main = get_node_or_null("/root/Main")
@@ -88,22 +128,62 @@ func _handle_movement(delta):
 	if Input.is_action_just_pressed("dash"):
 		do_dash()
 
+	# gravity / floor snap
+	if is_on_floor():
+		vy = -0.5
+	else:
+		vy -= GRAVITY * delta
+
 	if dash_time > 0:
 		dash_time -= delta
-		velocity = dash_dir * DASH_SPEED
+		velocity = Vector3(dash_dir.x * DASH_SPEED, vy, dash_dir.z * DASH_SPEED)
 		move_and_slide()
+		ghost_timer -= delta
+		if ghost_timer <= 0:
+			ghost_timer = 0.045
+			_spawn_dash_ghost()
 		return
 
+	var planar = Vector3.ZERO
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
 		facing = input_dir
-		velocity = input_dir * speed
+		planar = input_dir * speed
 		var mi = get_node_or_null("MeshInstance3D")
 		if mi:
 			mi.rotation.y = lerp_angle(mi.rotation.y, atan2(facing.x, facing.z), 12.0 * delta)
-	else:
-		velocity = Vector3.ZERO
+	velocity = Vector3(planar.x, vy, planar.z)
 	move_and_slide()
+
+	# breathing idle
+	var mi2 = get_node_or_null("MeshInstance3D")
+	if mi2:
+		breathe_t += delta * 2.0
+		var s = 1.0 + sin(breathe_t) * 0.02
+		mi2.scale = Vector3(s, 2.0 - s, s)
+
+func _spawn_dash_ghost():
+	var main = get_node_or_null("/root/Main")
+	if main == null:
+		return
+	var g = MeshInstance3D.new()
+	var cp = CapsuleMesh.new()
+	cp.radius = 0.5
+	cp.height = 2.0
+	g.mesh = cp
+	var gm = StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	gm.albedo_color = Color(0.5, 0.8, 1.0, 0.35)
+	gm.emission_enabled = true
+	gm.emission = Color(0.4, 0.7, 1.0)
+	g.material_override = gm
+	main.add_child(g)
+	g.global_position = global_position + Vector3(0, 1.0, 0)
+	g.rotation.y = atan2(facing.x, facing.z)
+	var tw = g.create_tween()
+	tw.tween_property(gm, "albedo_color:a", 0.0, 0.3)
+	tw.tween_callback(g.queue_free)
 
 func do_dash() -> bool:
 	if dash_cooldown > 0 or dead:
@@ -134,7 +214,7 @@ func _perform_melee_attack():
 		var dist = to_e.length()
 		if dist > 0.01 and dist < 3.0 and facing.angle_to(to_e.normalized()) < 1.2:
 			var dmg = combat.melee_attack(self, e) if combat else 18
-			e.apply_knockback(to_e.normalized(), 7.0)
+			e.apply_knockback(to_e.normalized(), 7.0, 2.0)
 			hit_any = true
 			if main:
 				Juice.damage_text(main, e.global_position, str(dmg), Color(1, 0.9, 0.3))
@@ -203,6 +283,7 @@ func gain_xp(amount: int):
 			Juice.ring(main, global_position, Color(1.0, 0.85, 0.2), 5.0, 0.6)
 			Juice.burst(main, global_position + Vector3(0, 1, 0), Color(1.0, 0.9, 0.3), 36, 6.0, 0.8, 0.1)
 			main.show_banner("LEVEL %d" % level, "max HP up, wounds mended")
+			main.zoom_punch(2.0, 0.4)
 
 func _update_shield_bubble():
 	if shield_active and shield_bubble == null:

@@ -17,12 +17,15 @@ var attack_cooldown: float = 0.0
 var phase: int = 0
 var is_elite: bool = false
 var knockback_vel: Vector3 = Vector3.ZERO
+var vy: float = 0.0
 var slow_factor: float = 1.0
 var slow_timer: float = 0.0
 var dying: bool = false
 var xp_awarded: bool = false
 var mesh_inst: MeshInstance3D = null
+var bob_t: float = 0.0
 
+const GRAVITY: float = 22.0
 const TYPE_COLORS: Dictionary = {
 	"Ash Wraith":    {"body": Color(0.55, 0.25, 0.7), "glow": Color(0.6, 0.2, 0.9), "shape": "capsule"},
 	"Hollow Stalker":{"body": Color(0.15, 0.15, 0.25), "glow": Color(0.3, 0.3, 0.6), "shape": "capsule_tall"},
@@ -38,10 +41,12 @@ func _init():
 
 func _ready():
 	add_to_group("enemies")
+	floor_snap_length = 0.4
 	var hb = get_node_or_null("HPBar")
 	if hb:
 		hb.visible = false
 	mesh_inst = get_node_or_null("MeshInstance3D")
+	bob_t = randf() * TAU
 	_apply_visuals()
 
 func make_elite():
@@ -102,13 +107,33 @@ func _apply_visuals():
 		mat.emission_energy_multiplier = 1.6
 	mesh_inst.material_override = mat
 	mesh_inst.position.y = 1.0
+	_add_eyes(spec["glow"])
+
+func _add_eyes(glow: Color):
+	for side in [-1, 1]:
+		var eye = MeshInstance3D.new()
+		var sm = SphereMesh.new()
+		sm.radius = 0.09
+		sm.height = 0.18
+		eye.mesh = sm
+		var em = StandardMaterial3D.new()
+		em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		em.albedo_color = Color(1, 1, 1)
+		em.emission_enabled = true
+		em.emission = glow.lerp(Color(1, 1, 1), 0.4)
+		em.emission_energy_multiplier = 3.0 if is_elite else 2.0
+		eye.material_override = em
+		mesh_inst.add_child(eye)
+		eye.position = Vector3(side * 0.22, 0.55, 0.42)
 
 func apply_slow(factor: float, duration: float):
 	slow_factor = factor
 	slow_timer = duration
 
-func apply_knockback(dir: Vector3, force: float = 6.0):
+func apply_knockback(dir: Vector3, force: float = 6.0, launch: float = 0.0):
 	knockback_vel += dir.normalized() * force
+	if launch > 0.0:
+		vy = max(vy, launch)
 
 func take_damage(amount: int) -> int:
 	if dying:
@@ -136,11 +161,9 @@ func die():
 		Juice.burst(main, global_position + Vector3(0, 1, 0), body_col, 28 if is_elite else 16, 6.0, 0.6, 0.1)
 		if is_elite:
 			Juice.ring(main, global_position, Color(0.8, 0.3, 1.0), 4.0, 0.5)
-		# loot
 		Pickup.spawn(main, global_position, "lc", 60 + xp_value)
 		if randf() < 0.3 or is_elite:
 			Pickup.spawn(main, global_position + Vector3(0.8, 0, 0.4), "hp", 25)
-	# death anim: shrink + sink
 	var tw = create_tween()
 	tw.tween_property(self, "scale", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(self, "position:y", position.y - 0.5, 0.35)
@@ -158,82 +181,87 @@ func update(dt: float, player_pos: Vector3):
 	var dist = global_position.distance_to(player_pos)
 	var spd = move_speed * slow_factor
 
+	# behaviors return planar velocity; physics applied once below
+	var planar: Vector3
 	match behavior_pattern:
 		"patrol_loop":
-			_behavior_patrol(dt, dist, player_pos, spd)
+			planar = _behavior_patrol(dt, dist, player_pos, spd)
 		"stealth_ambush":
-			_behavior_ambush(dt, dist, player_pos, spd)
+			planar = _behavior_ambush(dt, dist, player_pos, spd)
 		"area_pulse":
-			_behavior_pulse(dt, dist, player_pos, spd)
+			planar = _behavior_pulse(dt, dist, player_pos, spd)
 		"buff_ally":
-			_behavior_buff(dt, dist, player_pos, spd)
+			planar = _behavior_buff(dt, dist, player_pos, spd)
 		"swarm_split":
-			_behavior_swarm(dt, dist, player_pos, spd)
+			planar = _behavior_swarm(dt, dist, player_pos, spd)
 		_:
-			_behavior_chase(dt, dist, player_pos, spd)
+			planar = _behavior_chase(dt, dist, player_pos, spd)
 
-	# knockback decays fast
-	velocity += knockback_vel
+	# unified physics: planar + knockback + gravity
+	planar += knockback_vel
 	knockback_vel = knockback_vel.lerp(Vector3.ZERO, min(10.0 * dt, 1.0))
-
-	# face movement
-	if velocity.length() > 0.2 and mesh_inst:
-		mesh_inst.rotation.y = lerp_angle(mesh_inst.rotation.y, atan2(velocity.x, velocity.z), 8.0 * dt)
-
-func _move_toward(player_pos: Vector3, spd: float):
-	var dir = (player_pos - global_position)
-	dir.y = 0
-	dir = dir.normalized()
-	velocity = dir * spd
+	if is_on_floor():
+		vy = -0.5
+	else:
+		vy -= GRAVITY * dt
+	velocity = Vector3(planar.x, vy, planar.z)
 	move_and_slide()
 
-func _behavior_chase(dt: float, dist: float, player_pos: Vector3, spd: float):
+	# face travel direction + idle bob
+	if mesh_inst:
+		if planar.length() > 0.2:
+			mesh_inst.rotation.y = lerp_angle(mesh_inst.rotation.y, atan2(planar.x, planar.z), 8.0 * dt)
+		bob_t += dt * 2.2
+		mesh_inst.position.y = 1.0 + sin(bob_t) * 0.05
+
+func _chase_vel(player_pos: Vector3, spd: float) -> Vector3:
+	var dir = player_pos - global_position
+	dir.y = 0
+	return dir.normalized() * spd if dir.length() > 0.01 else Vector3.ZERO
+
+func _behavior_chase(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
 	if dist < detection_range:
 		if dist > attack_range:
-			_move_toward(player_pos, spd)
-		else:
-			velocity = Vector3.ZERO
-			if attack_cooldown <= 0:
-				attack_cooldown = 1.5
-				state_machine = "attack"
-	else:
-		velocity = Vector3.ZERO
+			return _chase_vel(player_pos, spd)
+		if attack_cooldown <= 0:
+			attack_cooldown = 1.5
+			state_machine = "attack"
+	return Vector3.ZERO
 
-func _behavior_patrol(dt: float, dist: float, player_pos: Vector3, spd: float):
+func _behavior_patrol(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
 	if dist < detection_range:
-		_move_toward(player_pos, spd)
-	else:
-		if state_timer <= 0:
-			patrol_target = global_position + Vector3(randi() % 10 - 5, 0, randi() % 10 - 5)
-			state_timer = 3.0
-		var dir = patrol_target - global_position
-		dir.y = 0
-		if dir.length() > 0.5:
-			velocity = dir.normalized() * spd * 0.5
-			move_and_slide()
-		else:
-			velocity = Vector3.ZERO
+		return _chase_vel(player_pos, spd)
+	if state_timer <= 0:
+		patrol_target = global_position + Vector3(randi() % 10 - 5, 0, randi() % 10 - 5)
+		state_timer = 3.0
+	var dir = patrol_target - global_position
+	dir.y = 0
+	if dir.length() > 0.5:
+		return dir.normalized() * spd * 0.5
+	return Vector3.ZERO
 
-func _behavior_ambush(dt: float, dist: float, player_pos: Vector3, spd: float):
+func _behavior_ambush(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
 	if dist < detection_range * 0.5:
-		_move_toward(player_pos, spd * 2.0)
-	else:
-		velocity = Vector3.ZERO
+		return _chase_vel(player_pos, spd * 2.0)
+	return Vector3.ZERO
 
-func _behavior_pulse(dt: float, dist: float, player_pos: Vector3, spd: float):
+func _behavior_pulse(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
 	if state_timer <= 0:
 		state_timer = 4.0
 		state_machine = "pulse"
 	if dist < detection_range:
-		_move_toward(player_pos, spd * 0.35)
+		return _chase_vel(player_pos, spd * 0.35)
+	return Vector3.ZERO
 
-func _behavior_buff(dt: float, dist: float, player_pos: Vector3, spd: float):
-	if dist < detection_range:
-		_move_toward(player_pos, spd * 0.7)
+func _behavior_buff(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
 	if state_timer <= 0:
 		state_timer = 6.0
 		state_machine = "buff"
-
-func _behavior_swarm(dt: float, dist: float, player_pos: Vector3, spd: float):
 	if dist < detection_range:
-		_move_toward(player_pos, spd * 1.25)
+		return _chase_vel(player_pos, spd * 0.7)
+	return Vector3.ZERO
+
+func _behavior_swarm(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
+	if dist < detection_range:
+		return _chase_vel(player_pos, spd * 1.25)
+	return Vector3.ZERO

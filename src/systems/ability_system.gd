@@ -78,7 +78,7 @@ func _apply_effect(ability_id: String, actor: Actor):
 				to_e.y = 0
 				if to_e.length() > 0.01 and fwd.angle_to(to_e.normalized()) < 1.0:
 					e.take_damage(dmg)
-					e.apply_knockback(to_e.normalized(), 8.0)
+					e.apply_knockback(to_e.normalized(), 8.0, 2.5)
 					if main:
 						Juice.damage_text(main, e.global_position, str(dmg), Color(1, 0.55, 0.15))
 			if main:
@@ -125,13 +125,15 @@ func _apply_effect(ability_id: String, actor: Actor):
 				to_e2.y = 0
 				e.take_damage(dmg2)
 				if to_e2.length() > 0.01:
-					e.apply_knockback(to_e2.normalized(), 12.0)
+					e.apply_knockback(to_e2.normalized(), 12.0, 5.0)
 				if main:
 					Juice.damage_text(main, e.global_position, str(dmg2), Color(1, 0.95, 0.3), true)
 			if main:
 				Juice.ring(main, actor.global_position, Color(1, 0.9, 0.2), 8.0, 0.6)
 				Juice.burst(main, actor.global_position + Vector3(0, 1, 0), Color(1, 0.85, 0.2), 48, 9.0, 0.7, 0.12)
 				main.add_shake(0.7)
+				main.hit_stop(0.09, 0.1)
+				main.zoom_punch(3.0, 0.45)
 
 class Ability:
 	var ability_id: String

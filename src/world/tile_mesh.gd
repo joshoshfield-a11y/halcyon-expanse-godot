@@ -78,6 +78,8 @@ func _update_mesh():
 
 	$MeshInstance3D.mesh = mesh
 	$MeshInstance3D.material_override = mat
+	if tile_type in [ExpanseTileData.TileType.WALL_STONE, ExpanseTileData.TileType.WALL_METAL, ExpanseTileData.TileType.WALL_CRYSTAL]:
+		_add_wall_trim()
 	if mesh.size.y > 1.0:
 		$MeshInstance3D.position.y = mesh.size.y / 2.0
 	elif tile_type == ExpanseTileData.TileType.FLOOR_WATER:
@@ -106,3 +108,24 @@ func _update_mesh():
 	shape.size = mesh.size
 	$CollisionShape3D.shape = shape
 	$CollisionShape3D.position = $MeshInstance3D.position
+
+
+func _add_wall_trim():
+	var trim = MeshInstance3D.new()
+	var tb = BoxMesh.new()
+	tb.size = Vector3(2.04, 0.09, 2.04)
+	trim.mesh = tb
+	var tm2 = StandardMaterial3D.new()
+	tm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var col = Color(0.9, 0.6, 0.25)
+	if tile_type == ExpanseTileData.TileType.WALL_METAL:
+		col = Color(1.0, 0.55, 0.1)
+	elif tile_type == ExpanseTileData.TileType.WALL_CRYSTAL:
+		col = Color(0.7, 0.3, 1.0)
+	tm2.albedo_color = col
+	tm2.emission_enabled = true
+	tm2.emission = col
+	tm2.emission_energy_multiplier = 1.6
+	trim.material_override = tm2
+	add_child(trim)
+	trim.position.y = 3.06

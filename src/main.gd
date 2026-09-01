@@ -48,15 +48,15 @@ var warp_vbox: VBoxContainer
 var death_shown: bool = false
 
 const BIOME_ENV: Dictionary = {
-	"temperate":  {"bg": Color(0.35, 0.5, 0.65), "amb": Color(0.55, 0.6, 0.65), "fog": Color(0.4, 0.5, 0.6),  "fogd": 0.010, "light": Color(1.0, 0.95, 0.85), "le": 1.1},
-	"volcanic":   {"bg": Color(0.14, 0.05, 0.05), "amb": Color(0.5, 0.3, 0.25), "fog": Color(0.35, 0.1, 0.05), "fogd": 0.022, "light": Color(1.0, 0.6, 0.4), "le": 0.9},
-	"river":      {"bg": Color(0.25, 0.45, 0.55), "amb": Color(0.5, 0.6, 0.65), "fog": Color(0.3, 0.5, 0.55),  "fogd": 0.014, "light": Color(0.95, 1.0, 0.95), "le": 1.05},
-	"void":       {"bg": Color(0.04, 0.03, 0.08), "amb": Color(0.35, 0.3, 0.5), "fog": Color(0.15, 0.08, 0.25),"fogd": 0.02, "light": Color(0.6, 0.5, 0.9), "le": 0.7},
-	"marsh":      {"bg": Color(0.2, 0.3, 0.2),  "amb": Color(0.45, 0.55, 0.45), "fog": Color(0.25, 0.35, 0.25),"fogd": 0.02, "light": Color(0.85, 0.95, 0.75), "le": 0.85},
-	"industrial": {"bg": Color(0.25, 0.22, 0.2), "amb": Color(0.55, 0.5, 0.45), "fog": Color(0.3, 0.26, 0.22), "fogd": 0.016, "light": Color(1.0, 0.85, 0.65), "le": 0.95},
-	"crystal":    {"bg": Color(0.12, 0.06, 0.2), "amb": Color(0.5, 0.35, 0.6), "fog": Color(0.25, 0.12, 0.4),  "fogd": 0.016, "light": Color(0.85, 0.7, 1.0), "le": 0.95},
-	"barren":     {"bg": Color(0.4, 0.38, 0.35), "amb": Color(0.6, 0.58, 0.55), "fog": Color(0.45, 0.42, 0.4), "fogd": 0.018, "light": Color(1.0, 0.98, 0.9), "le": 1.0},
-	"reef":       {"bg": Color(0.15, 0.4, 0.5), "amb": Color(0.45, 0.6, 0.65), "fog": Color(0.2, 0.45, 0.5),   "fogd": 0.016, "light": Color(0.8, 1.0, 0.95), "le": 1.0},
+	"temperate":  {"sky_t": Color(0.25, 0.45, 0.75), "sky_h": Color(0.65, 0.75, 0.85), "gnd": Color(0.2, 0.25, 0.2), "amb": Color(0.55, 0.6, 0.65), "fog": Color(0.4, 0.5, 0.6), "fogd": 0.010, "light": Color(1.0, 0.95, 0.85), "le": 1.1},
+	"volcanic":   {"sky_t": Color(0.12, 0.03, 0.03), "sky_h": Color(0.6, 0.2, 0.08), "gnd": Color(0.1, 0.05, 0.04), "amb": Color(0.5, 0.3, 0.25), "fog": Color(0.35, 0.1, 0.05), "fogd": 0.022, "light": Color(1.0, 0.6, 0.4), "le": 0.9},
+	"river":      {"sky_t": Color(0.2, 0.4, 0.6), "sky_h": Color(0.55, 0.75, 0.8), "gnd": Color(0.15, 0.25, 0.25), "amb": Color(0.5, 0.6, 0.65), "fog": Color(0.3, 0.5, 0.55), "fogd": 0.014, "light": Color(0.95, 1.0, 0.95), "le": 1.05},
+	"void":       {"sky_t": Color(0.02, 0.01, 0.05), "sky_h": Color(0.25, 0.1, 0.4), "gnd": Color(0.05, 0.03, 0.1), "amb": Color(0.35, 0.3, 0.5), "fog": Color(0.15, 0.08, 0.25), "fogd": 0.02, "light": Color(0.6, 0.5, 0.9), "le": 0.7},
+	"marsh":      {"sky_t": Color(0.15, 0.25, 0.2), "sky_h": Color(0.45, 0.55, 0.4), "gnd": Color(0.1, 0.15, 0.1), "amb": Color(0.45, 0.55, 0.45), "fog": Color(0.25, 0.35, 0.25), "fogd": 0.02, "light": Color(0.85, 0.95, 0.75), "le": 0.85},
+	"industrial": {"sky_t": Color(0.2, 0.18, 0.16), "sky_h": Color(0.6, 0.45, 0.3), "gnd": Color(0.15, 0.13, 0.12), "amb": Color(0.55, 0.5, 0.45), "fog": Color(0.3, 0.26, 0.22), "fogd": 0.016, "light": Color(1.0, 0.85, 0.65), "le": 0.95},
+	"crystal":    {"sky_t": Color(0.08, 0.04, 0.16), "sky_h": Color(0.45, 0.2, 0.65), "gnd": Color(0.1, 0.05, 0.18), "amb": Color(0.5, 0.35, 0.6), "fog": Color(0.25, 0.12, 0.4), "fogd": 0.016, "light": Color(0.85, 0.7, 1.0), "le": 0.95},
+	"barren":     {"sky_t": Color(0.35, 0.33, 0.3), "sky_h": Color(0.7, 0.65, 0.55), "gnd": Color(0.25, 0.23, 0.2), "amb": Color(0.6, 0.58, 0.55), "fog": Color(0.45, 0.42, 0.4), "fogd": 0.018, "light": Color(1.0, 0.98, 0.9), "le": 1.0},
+	"reef":       {"sky_t": Color(0.1, 0.3, 0.45), "sky_h": Color(0.4, 0.7, 0.75), "gnd": Color(0.1, 0.25, 0.3), "amb": Color(0.45, 0.6, 0.65), "fog": Color(0.2, 0.45, 0.5), "fogd": 0.016, "light": Color(0.8, 1.0, 0.95), "le": 1.0},
 }
 
 func _ready():
@@ -99,7 +99,20 @@ func _init_environment():
 
 func _apply_biome_env(biome: String):
 	var spec = BIOME_ENV.get(biome, BIOME_ENV["temperate"])
-	env.background_color = spec["bg"]
+	var sky = Sky.new()
+	var sm = ProceduralSkyMaterial.new()
+	sm.sky_top_color = spec["sky_t"]
+	sm.sky_horizon_color = spec["sky_h"]
+	sm.ground_bottom_color = spec["gnd"]
+	sm.ground_horizon_color = spec["sky_h"]
+	sm.sun_angle_max = 25.0
+	sm.sky_curve = 0.08
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.glow_enabled = true
+	env.glow_intensity = 0.5
+	env.glow_bloom = 0.08
 	env.ambient_light_color = spec["amb"]
 	env.ambient_light_energy = 0.7
 	env.fog_light_color = spec["fog"]
@@ -134,7 +147,7 @@ func _spawn_player():
 	var spawn = current_map["spawn_points"][0]
 	var pos = world_gen.grid_to_world(spawn)
 	var player = player_scene.instantiate()
-	player.position = pos
+	player.position = pos + Vector3(0, 1.1, 0)
 	$Entities.add_child(player)
 	state.add_entity(player)
 	player.resonance = "Ember"
@@ -146,7 +159,7 @@ func _spawn_enemies():
 		if randf() < 0.6:
 			var pos = world_gen.grid_to_world(espawn)
 			var enemy = enemy_scene.instantiate()
-			enemy.position = pos
+			enemy.position = pos + Vector3(0, 1.1, 0)
 			var types = ["Ash Wraith", "Hollow Stalker", "Iron Drone", "Tide Serpent", "Chorus Knight", "Swarm Mite"]
 			enemy.enemy_type = types[randi() % types.size()]
 			var entry = bestiary.get_entry(enemy.enemy_type)
@@ -190,6 +203,19 @@ func _init_camera():
 
 func add_shake(amount: float):
 	shake_trauma = min(shake_trauma + amount, 1.0)
+
+func hit_stop(dur: float = 0.06, scale: float = 0.15):
+	Engine.time_scale = scale
+	await get_tree().create_timer(dur, true, false, true).timeout
+	if not get_tree().paused:
+		Engine.time_scale = 1.0
+
+func zoom_punch(amount: float = 2.5, dur: float = 0.4):
+	if cam == null:
+		return
+	var tw = cam.create_tween()
+	tw.tween_property(cam, "size", 20.0 - amount, dur * 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cam, "size", 20.0, dur * 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 
 func _update_camera(delta):
 	if cam == null or state.player == null:
@@ -355,8 +381,9 @@ func _respawn_player():
 	p.lattice_charge = 300.0
 	p.shield_active = false
 	var spawn = current_map["spawn_points"][0]
-	p.global_position = world_gen.grid_to_world(spawn)
+	p.global_position = world_gen.grid_to_world(spawn) + Vector3(0, 1.1, 0)
 	p.velocity = Vector3.ZERO
+	p.vy = 0.0
 	death_shown = false
 	flow = FLOW_PLAYING
 
@@ -430,6 +457,23 @@ func _process(delta):
 				Juice.burst(self, player.global_position + Vector3(0, 1, 0), Color(1, 0.3, 0.25), 8, 3.5, 0.3, 0.07)
 				add_shake(0.3)
 
+	# enemy separation (soft-body crowd, no stacking)
+	for i2 in range(enemies.size()):
+		var a = enemies[i2]
+		if not is_instance_valid(a) or a.dead:
+			continue
+		for j2 in range(i2 + 1, enemies.size()):
+			var b2 = enemies[j2]
+			if not is_instance_valid(b2) or b2.dead:
+				continue
+			var d = a.global_position - b2.global_position
+			d.y = 0
+			var dd = d.length()
+			if dd > 0.001 and dd < 1.3:
+				var push = d.normalized() * (1.3 - dd) * 3.0 * delta
+				a.global_position += push
+				b2.global_position -= push
+
 	# kill rewards + cleanup
 	for i in range(enemies.size() - 1, -1, -1):
 		var e = enemies[i]
@@ -440,6 +484,9 @@ func _process(delta):
 				e.xp_awarded = true
 				player.gain_xp(e.xp_value)
 				player.kills += 1
+				if e.is_elite:
+					hit_stop(0.1, 0.08)
+					zoom_punch(2.5, 0.4)
 			enemies.remove_at(i)
 
 	# gate proximity → warp prompt
@@ -471,8 +518,9 @@ func warp_to_system(target: String):
 		_spawn_item_pickups()
 		if state.player:
 			var spawn = current_map["spawn_points"][0]
-			state.player.global_position = world_gen.grid_to_world(spawn)
+			state.player.global_position = world_gen.grid_to_world(spawn) + Vector3(0, 1.1, 0)
 			state.player.velocity = Vector3.ZERO
+			state.player.vy = 0.0
 			Juice.ring(self, state.player.global_position, Color(0.2, 0.8, 1.0), 7.0, 0.7)
 			Juice.burst(self, state.player.global_position + Vector3(0, 1, 0), Color(0.3, 0.8, 1.0), 40, 7.0, 0.8, 0.1)
 		var data = star_systems.get_system_data(target)

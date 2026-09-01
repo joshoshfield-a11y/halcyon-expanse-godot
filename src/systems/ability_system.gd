@@ -1,7 +1,7 @@
 extends Node
 class_name AbilitySystem
 
-var name: String = "AbilitySystem"
+var display_name: String = "AbilitySystem"
 var abilities: Dictionary = {}
 
 const RESONANCE_WHEEL: Array = ["Ember", "Gale", "Hollow", "Tide", "Root", "Iron", "Chorus"]

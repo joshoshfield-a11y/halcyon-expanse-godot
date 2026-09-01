@@ -1,7 +1,7 @@
 extends Node
 class_name FactionManager
 
-var name: String = "FactionManager"
+var display_name: String = "FactionManager"
 var reputations: Dictionary = {}
 var factions: Dictionary = {}
 

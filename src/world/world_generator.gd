@@ -16,7 +16,7 @@ func generate_system(system_name: String, biome: String) -> Dictionary:
 	var gates = []
 	var enemies = []
 	var items = []
-	var tileset = TileData.get_biome_tiles(biome)
+	var tileset = ExpanseTileData.get_biome_tiles(biome)
 
 	for y in range(map_height):
 		var row = []
@@ -24,26 +24,26 @@ func generate_system(system_name: String, biome: String) -> Dictionary:
 			var tile = tileset[rng.randi() % tileset.size()]
 			# Border walls
 			if x == 0 or x == map_width - 1 or y == 0 or y == map_height - 1:
-				tile = TileData.TileType.WALL_STONE
+				tile = ExpanseTileData.TileType.WALL_STONE
 			# Random structures
 			elif rng.randf() < 0.08:
-				tile = TileData.TileType.WALL_STONE
+				tile = ExpanseTileData.TileType.WALL_STONE
 			# Seam gates
 			elif rng.randf() < 0.02 and x > 5 and x < map_width - 5 and y > 5 and y < map_height - 5:
-				tile = TileData.TileType.GATE_SEAM
+				tile = ExpanseTileData.TileType.GATE_SEAM
 				gates.append(Vector2i(x, y))
 			# Enemy spawns
-			elif rng.randf() < 0.03 and TileData.is_walkable(tile):
+			elif rng.randf() < 0.03 and ExpanseTileData.is_walkable(tile):
 				enemies.append(Vector2i(x, y))
 			# Item spawns
-			elif rng.randf() < 0.02 and TileData.is_walkable(tile):
+			elif rng.randf() < 0.02 and ExpanseTileData.is_walkable(tile):
 				items.append(Vector2i(x, y))
 			row.append(tile)
 		tiles.append(row)
 
 	# Player spawn center
 	spawn_points.append(Vector2i(map_width / 2, map_height / 2))
-	tiles[map_height / 2][map_width / 2] = TileData.TileType.FLOOR_STONE
+	tiles[map_height / 2][map_width / 2] = ExpanseTileData.TileType.FLOOR_STONE
 
 	return {
 		"name": system_name,

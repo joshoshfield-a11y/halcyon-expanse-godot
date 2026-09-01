@@ -1,7 +1,7 @@
 extends Node
 class_name Bestiary
 
-var name: String = "Bestiary"
+var display_name: String = "Bestiary"
 var entries: Dictionary = {}
 var discovered: Array = []
 

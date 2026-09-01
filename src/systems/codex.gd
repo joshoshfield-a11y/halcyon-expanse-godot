@@ -1,7 +1,7 @@
 extends Node
 class_name Codex
 
-var name: String = "Codex"
+var display_name: String = "Codex"
 var entries: Dictionary = {}
 var unlocked: Array = []
 

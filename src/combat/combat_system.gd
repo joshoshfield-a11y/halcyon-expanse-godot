@@ -1,7 +1,7 @@
 extends Node
 class_name CombatSystem
 
-var name: String = "CombatSystem"
+var display_name: String = "CombatSystem"
 
 func melee_attack(attacker: Actor, target: GameEntity) -> int:
 	var dmg = 18 + attacker.get_damage_bonus()

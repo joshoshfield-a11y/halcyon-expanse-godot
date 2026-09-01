@@ -1,7 +1,7 @@
 extends Node
 class_name StarSystemManager
 
-var name: String = "StarSystemManager"
+var display_name: String = "StarSystemManager"
 var systems: Dictionary = {}
 var current_system: String = "VeyraPrime"
 
@@ -29,5 +29,5 @@ func warp(target_name: String) -> bool:
 		return true
 	return false
 
-func get_system_data(name: String) -> Dictionary:
-	return systems.get(name, {})
+func get_system_data(sys_name: String) -> Dictionary:
+	return systems.get(sys_name, {})

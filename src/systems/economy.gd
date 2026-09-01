@@ -1,7 +1,7 @@
 extends Node
 class_name Economy
 
-var name: String = "Economy"
+var display_name: String = "Economy"
 var compact_scrip: float = 100.0
 var ledger_mark: float = 50.0
 var exchange_rate: float = 1.0

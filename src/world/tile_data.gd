@@ -1,5 +1,5 @@
 extends RefCounted
-class_name TileData
+class_name ExpanseTileData
 
 enum TileType {
 	FLOOR_GRASS, FLOOR_STONE, FLOOR_ASH, FLOOR_CRYSTAL,

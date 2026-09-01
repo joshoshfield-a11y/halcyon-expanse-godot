@@ -7,7 +7,7 @@
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_enemy"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_enemy"]
-albedo_color = Color(0.8, 0.1, 0.1)
+albedo_color = Color(0.8, 0.1, 0.1, 1)
 
 [node name="Enemy" type="CharacterBody3D"]
 collision_layer = 4

@@ -29,7 +29,7 @@ var flow: int = FLOW_TITLE
 # third-person boom camera
 var cam: Camera3D = null
 var cam_yaw: float = 0.0
-var cam_pitch: float = 0.42
+var cam_pitch: float = 0.5
 var cam_dist: float = 8.5
 var shake_trauma: float = 0.0
 var env: Environment

@@ -15,6 +15,11 @@ var xp_label: Label
 var stats_label: Label
 
 func _ready():
+	# keep the status panel a fixed width instead of stretching full screen
+	var mc = $MarginContainer
+	mc.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	mc.position = Vector2(10, 10)
+	mc.custom_minimum_size = Vector2(430, 0)
 	# build XP bar + stats row in code (scene stays untouched)
 	xp_bar = ProgressBar.new()
 	xp_bar.max_value = 100.0

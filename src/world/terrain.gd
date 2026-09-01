@@ -86,8 +86,8 @@ func build(parent: Node, biome: String) -> Dictionary:
 			var b2 = a + 1
 			var c = a + N
 			var d = a + N + 1
-			indices[k] = a; indices[k+1] = c; indices[k+2] = b2
-			indices[k+3] = b2; indices[k+4] = c; indices[k+5] = d
+			indices[k] = a; indices[k+1] = b2; indices[k+2] = c
+			indices[k+3] = b2; indices[k+4] = d; indices[k+5] = c
 			k += 6
 
 	var arr = []
@@ -101,6 +101,7 @@ func build(parent: Node, biome: String) -> Dictionary:
 	var mat = StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.92
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh.surface_set_material(0, mat)
 
 	var mi = MeshInstance3D.new()

@@ -24,6 +24,8 @@ var dying: bool = false
 var xp_awarded: bool = false
 var mesh_inst: MeshInstance3D = null
 var bob_t: float = 0.0
+var rig: Dictionary = {}
+var walk_phase: float = 0.0
 
 const GRAVITY: float = 22.0
 const TYPE_COLORS: Dictionary = {
@@ -42,6 +44,7 @@ func _init():
 func _ready():
 	add_to_group("enemies")
 	floor_snap_length = 0.4
+	collision_mask = 7 | 16
 	var hb = get_node_or_null("HPBar")
 	if hb:
 		hb.visible = false
@@ -62,51 +65,24 @@ func _apply_visuals():
 	if mesh_inst == null:
 		return
 	var spec = TYPE_COLORS.get(enemy_type, {"body": Color(0.7, 0.2, 0.2), "glow": Color(1, 0.3, 0.3), "shape": "capsule"})
-	var mesh: Mesh
+	# hide the placeholder capsule, build an articulated rig tinted per type
+	mesh_inst.visible = false
+	var accent = spec["body"].darkened(0.45)
+	rig = CharRig.build(self, spec["body"], spec["glow"], accent)
 	match spec["shape"]:
-		"box":
-			var b = BoxMesh.new()
-			b.size = Vector3(0.9, 0.9, 0.9)
-			mesh = b
-		"long":
-			var c = CapsuleMesh.new()
-			c.radius = 0.35
-			c.height = 2.4
-			mesh = c
-		"knight":
-			var cy = CylinderMesh.new()
-			cy.top_radius = 0.35
-			cy.bottom_radius = 0.6
-			cy.height = 2.0
-			mesh = cy
 		"small":
-			var s = SphereMesh.new()
-			s.radius = 0.4
-			s.height = 0.8
-			mesh = s
-		"capsule_tall":
-			var ct = CapsuleMesh.new()
-			ct.radius = 0.4
-			ct.height = 2.6
-			mesh = ct
-		_:
-			var cp = CapsuleMesh.new()
-			cp.radius = 0.5
-			cp.height = 2.0
-			mesh = cp
-	mesh_inst.mesh = mesh
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = spec["body"]
-	mat.emission_enabled = true
-	mat.emission = spec["glow"]
-	mat.emission_energy_multiplier = 0.7
-	mat.metallic = 0.25
-	mat.roughness = 0.6
+			rig["root"].scale = Vector3(0.62, 0.62, 0.62)
+		"capsule_tall", "long":
+			rig["root"].scale = Vector3(0.9, 1.18, 0.9)
+		"knight":
+			rig["root"].scale = Vector3(1.18, 1.08, 1.18)
+		"box":
+			rig["root"].scale = Vector3(1.1, 0.95, 1.1)
 	if is_elite:
-		mat.emission = Color(0.8, 0.3, 1.0)
-		mat.emission_energy_multiplier = 1.6
-	mesh_inst.material_override = mat
-	mesh_inst.position.y = 1.0
+		for m in rig["flash_mats"]:
+			m.emission_enabled = true
+			m.emission = Color(0.8, 0.3, 1.0)
+			m.emission_energy_multiplier = 1.4
 	_add_eyes(spec["glow"])
 
 func _add_eyes(glow: Color):
@@ -123,8 +99,12 @@ func _add_eyes(glow: Color):
 		em.emission = glow.lerp(Color(1, 1, 1), 0.4)
 		em.emission_energy_multiplier = 3.0 if is_elite else 2.0
 		eye.material_override = em
-		mesh_inst.add_child(eye)
-		eye.position = Vector3(side * 0.22, 0.55, 0.42)
+		if rig:
+			rig["head"].add_child(eye)
+			eye.position = Vector3(side * 0.12, 0.03, 0.22)
+		else:
+			mesh_inst.add_child(eye)
+			eye.position = Vector3(side * 0.22, 0.55, 0.42)
 
 func apply_slow(factor: float, duration: float):
 	slow_factor = factor
@@ -140,8 +120,8 @@ func take_damage(amount: int) -> int:
 		return hp
 	var dealt = max(amount, 1)
 	var result = super.take_damage(dealt)
-	if mesh_inst:
-		Juice.flash(mesh_inst, 3.5, 0.1)
+	if rig:
+		CharRig.flash(rig, 3.5, 0.1)
 	if hp <= 0:
 		die()
 	return result
@@ -159,6 +139,7 @@ func die():
 		body_col = TYPE_COLORS[enemy_type]["glow"]
 	if main:
 		Juice.burst(main, global_position + Vector3(0, 1, 0), body_col, 28 if is_elite else 16, 6.0, 0.6, 0.1)
+		CharRig.spawn_debris(main, global_position, body_col, 7 if is_elite else 4, 5.5 if is_elite else 4.0)
 		if is_elite:
 			Juice.ring(main, global_position, Color(0.8, 0.3, 1.0), 4.0, 0.5)
 		Pickup.spawn(main, global_position, "lc", 60 + xp_value)
@@ -207,12 +188,14 @@ func update(dt: float, player_pos: Vector3):
 	velocity = Vector3(planar.x, vy, planar.z)
 	move_and_slide()
 
-	# face travel direction + idle bob
-	if mesh_inst:
-		if planar.length() > 0.2:
-			mesh_inst.rotation.y = lerp_angle(mesh_inst.rotation.y, atan2(planar.x, planar.z), 8.0 * dt)
-		bob_t += dt * 2.2
-		mesh_inst.position.y = 1.0 + sin(bob_t) * 0.05
+	# face travel direction + procedural walk cycle
+	if rig:
+		var travel = Vector3(velocity.x, 0, velocity.z)
+		if travel.length() > 0.3:
+			rig["root"].rotation.y = lerp_angle(rig["root"].rotation.y, atan2(travel.x, travel.z), 8.0 * dt)
+		walk_phase += travel.length() * dt * 1.9
+		var spd_ratio = clamp(travel.length() / max(move_speed, 0.1), 0.0, 1.0)
+		CharRig.animate(rig, walk_phase, spd_ratio, not is_on_floor(), dt)
 
 func _chase_vel(player_pos: Vector3, spd: float) -> Vector3:
 	var dir = player_pos - global_position

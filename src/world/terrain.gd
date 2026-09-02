@@ -57,10 +57,12 @@ func build(parent: Node, biome: String) -> Dictionary:
 	var verts = PackedVector3Array()
 	var normals = PackedVector3Array()
 	var colors = PackedColorArray()
+	var uvs = PackedVector2Array()
 	var heights = PackedFloat32Array()
 	verts.resize(N * N)
 	normals.resize(N * N)
 	colors.resize(N * N)
+	uvs.resize(N * N)
 	heights.resize(N * N)
 
 	for iz in range(N):
@@ -76,6 +78,7 @@ func build(parent: Node, biome: String) -> Dictionary:
 			var n = Vector3(-hx, 1.4, -hz).normalized()
 			normals[idx] = n
 			colors[idx] = _ground_color(biome, x, z, y, n)
+			uvs[idx] = Vector2(x / 6.0, z / 6.0)
 
 	var indices = PackedInt32Array()
 	indices.resize((N - 1) * (N - 1) * 6)
@@ -95,6 +98,7 @@ func build(parent: Node, biome: String) -> Dictionary:
 	arr[Mesh.ARRAY_VERTEX] = verts
 	arr[Mesh.ARRAY_NORMAL] = normals
 	arr[Mesh.ARRAY_COLOR] = colors
+	arr[Mesh.ARRAY_TEX_UV] = uvs
 	arr[Mesh.ARRAY_INDEX] = indices
 	var mesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
@@ -102,6 +106,9 @@ func build(parent: Node, biome: String) -> Dictionary:
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.92
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var gtex = load("res://assets/textures/ground_detail.png")
+	if gtex:
+		mat.albedo_texture = gtex
 	mesh.surface_set_material(0, mat)
 
 	var mi = MeshInstance3D.new()
@@ -185,6 +192,12 @@ func _scatter_props(root: Node3D, biome: String) -> Array:
 			_make_crystal_prop(root, Vector3(x, y, z), rng)
 		else:
 			_make_ruin(root, Vector3(x, y, z), rng)
+	for i in range(12):
+		var bx = rng.randf_range(-HALF + 12, HALF - 12)
+		var bz = rng.randf_range(-HALF + 12, HALF - 12)
+		if Vector2(bx, bz).length() < 9.0:
+			continue
+		_make_boulder(root, Vector3(bx, height_at(bx, bz) + 1.2, bz), rng)
 	for i in range(14):
 		var x = rng.randf_range(-HALF + 10, HALF - 10)
 		var z = rng.randf_range(-HALF + 10, HALF - 10)
@@ -206,6 +219,9 @@ func _make_tree(root: Node3D, pos: Vector3, biome: String, rng: RandomNumberGene
 	var tmat = StandardMaterial3D.new()
 	tmat.albedo_color = Color(0.3, 0.22, 0.14)
 	tmat.roughness = 0.9
+	var dtex = load("res://assets/textures/ground_detail.png")
+	if dtex:
+		tmat.albedo_texture = dtex
 	trunk.material_override = tmat
 	t.add_child(trunk)
 	trunk.position.y = 0.9
@@ -242,6 +258,10 @@ func _make_rock(root: Node3D, pos: Vector3, rng: RandomNumberGenerator, big: boo
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = Color(0.35, 0.34, 0.36).lerp(Color(0.2, 0.2, 0.22), rng.randf())
 	mat.roughness = 0.95
+	var dtex2 = load("res://assets/textures/ground_detail.png")
+	if dtex2:
+		mat.albedo_texture = dtex2
+		mat.uv1_scale = Vector3(2, 2, 2)
 	r.material_override = mat
 	root.add_child(r)
 	r.position = pos + Vector3(0, sm.radius * 0.4, 0)
@@ -292,3 +312,35 @@ func _make_ruin(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
 		pillar.position = pos + Vector3(rng.randf_range(-2, 2), h * 0.5, rng.randf_range(-2, 2))
 		pillar.rotation.z = rng.randf_range(-0.15, 0.15)
 		pillar.rotation.y = rng.randf() * TAU
+
+func _make_boulder(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
+	var rb = RigidBody3D.new()
+	rb.add_to_group("phys_props")
+	rb.collision_layer = 16
+	rb.collision_mask = 1 | 16
+	rb.mass = 2.0
+	var pm = PhysicsMaterial.new()
+	pm.bounce = 0.25
+	pm.friction = 0.8
+	rb.physics_material_override = pm
+	var rad = 0.35 + rng.randf() * 0.35
+	var cs = CollisionShape3D.new()
+	var sph = SphereShape3D.new()
+	sph.radius = rad
+	cs.shape = sph
+	rb.add_child(cs)
+	var mi = MeshInstance3D.new()
+	var sm = SphereMesh.new()
+	sm.radius = rad
+	sm.height = rad * 2.0
+	mi.mesh = sm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.42, 0.36, 0.3).lerp(Color(0.55, 0.3, 0.15), rng.randf())
+	mat.roughness = 0.9
+	var dtex = load("res://assets/textures/ground_detail.png")
+	if dtex:
+		mat.albedo_texture = dtex
+	mi.material_override = mat
+	rb.add_child(mi)
+	root.add_child(rb)
+	rb.global_position = pos

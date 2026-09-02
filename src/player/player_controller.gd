@@ -18,12 +18,15 @@ var dash_dir: Vector3 = Vector3.ZERO
 var shield_bubble: MeshInstance3D = null
 var vy: float = 0.0
 var ghost_timer: float = 0.0
-var breathe_t: float = 0.0
+var rig: Dictionary = {}
+var walk_phase: float = 0.0
+var floor_nrm: Vector3 = Vector3.UP
 
 const GRAVITY: float = 22.0
 const DASH_SPEED: float = 18.0
 const DASH_DURATION: float = 0.22
 const DASH_CD: float = 1.6
+const JUMP_VEL: float = 9.5
 const ABILITY_IDS: Array = ["ember_strike", "gale_dash", "hollow_drain", "tide_heal",
 					"root_bind", "iron_shield", "chorus_blast"]
 const ABILITY_CDS: Dictionary = {"ember_strike": 3.0, "gale_dash": 4.0, "hollow_drain": 8.0,
@@ -38,6 +41,7 @@ func xp_next() -> int:
 
 func _ready():
 	floor_snap_length = 0.4
+	collision_mask = 7 | 16
 	is_player = true
 	name = "Player"
 	add_to_group("player")
@@ -49,38 +53,16 @@ func _ready():
 	_restyle()
 
 func _restyle():
+	# hide the old capsule; build an articulated rig instead
 	var mi = get_node_or_null("MeshInstance3D")
 	if mi:
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = Color(0.95, 0.35, 0.1)
-		mat.emission_enabled = true
-		mat.emission = Color(0.9, 0.3, 0.05)
-		mat.emission_energy_multiplier = 0.8
-		mat.metallic = 0.3
-		mat.roughness = 0.5
-		mi.material_override = mat
-		_add_model_parts(mi)
-
-func _add_model_parts(mi: MeshInstance3D):
-	# visor
-	var visor = MeshInstance3D.new()
-	var vb = BoxMesh.new()
-	vb.size = Vector3(0.55, 0.16, 0.1)
-	visor.mesh = vb
-	var vm = StandardMaterial3D.new()
-	vm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	vm.albedo_color = Color(0.4, 0.95, 1.0)
-	vm.emission_enabled = true
-	vm.emission = Color(0.3, 0.9, 1.0)
-	vm.emission_energy_multiplier = 2.5
-	visor.material_override = vm
-	mi.add_child(visor)
-	visor.position = Vector3(0, 0.55, 0.42)
+		mi.visible = false
+	rig = CharRig.build(self, Color(0.95, 0.35, 0.1), Color(0.9, 0.45, 0.1), Color(0.18, 0.2, 0.26))
 	# lattice trim ring at the waist
 	var ring = MeshInstance3D.new()
 	var tr = TorusMesh.new()
-	tr.inner_radius = 0.5
-	tr.outer_radius = 0.62
+	tr.inner_radius = 0.34
+	tr.outer_radius = 0.42
 	tr.rings = 24
 	tr.ring_segments = 6
 	ring.mesh = tr
@@ -91,8 +73,8 @@ func _add_model_parts(mi: MeshInstance3D):
 	rm.emission = Color(1.0, 0.5, 0.1)
 	rm.emission_energy_multiplier = 1.8
 	ring.material_override = rm
-	mi.add_child(ring)
-	ring.position = Vector3(0, -0.1, 0)
+	rig["root"].add_child(ring)
+	ring.position = Vector3(0, 1.06, 0)
 	ring.rotation.x = PI / 2
 
 func _is_playing() -> bool:
@@ -128,9 +110,14 @@ func _handle_movement(delta):
 	if Input.is_action_just_pressed("dash"):
 		do_dash()
 
-	# gravity / floor snap
-	if is_on_floor():
+	# gravity / floor snap + jump
+	var grounded = is_on_floor()
+	if grounded:
 		vy = -0.5
+		if Input.is_action_just_pressed("jump"):
+			vy = JUMP_VEL
+			grounded = false
+			Juice.burst(get_parent(), global_position + Vector3(0, 0.2, 0), Color(0.7, 0.8, 1.0), 6, 2.0, 0.3, 0.05)
 	else:
 		vy -= GRAVITY * delta
 
@@ -142,6 +129,8 @@ func _handle_movement(delta):
 		if ghost_timer <= 0:
 			ghost_timer = 0.045
 			_spawn_dash_ghost()
+		if rig:
+			CharRig.animate(rig, walk_phase, 1.0, false, delta)
 		return
 
 	var planar = Vector3.ZERO
@@ -152,18 +141,27 @@ func _handle_movement(delta):
 			input_dir = input_dir.rotated(Vector3.UP, main.cam_yaw)
 		facing = input_dir
 		planar = input_dir * speed
-		var mi = get_node_or_null("MeshInstance3D")
-		if mi:
-			mi.rotation.y = lerp_angle(mi.rotation.y, atan2(facing.x, facing.z), 12.0 * delta)
+
+	# steep-slope slide: use last frame's floor normal
+	if grounded and floor_nrm.y < 0.75 and floor_nrm.y > 0.05:
+		var downhill = Vector3(floor_nrm.x, 0, floor_nrm.z).normalized()
+		planar += downhill * (0.75 - floor_nrm.y) * 26.0
+
 	velocity = Vector3(planar.x, vy, planar.z)
 	move_and_slide()
+	if is_on_floor():
+		floor_nrm = get_floor_normal()
+	else:
+		floor_nrm = Vector3.UP
 
-	# breathing idle
-	var mi2 = get_node_or_null("MeshInstance3D")
-	if mi2:
-		breathe_t += delta * 2.0
-		var s = 1.0 + sin(breathe_t) * 0.02
-		mi2.scale = Vector3(s, 2.0 - s, s)
+	# rig: face travel direction + run cycle
+	if rig:
+		var planar_vel = Vector3(velocity.x, 0, velocity.z)
+		var spd_ratio = clamp(planar_vel.length() / speed, 0.0, 1.0)
+		walk_phase += planar_vel.length() * delta * 1.6
+		if planar.length() > 0.1:
+			rig["root"].rotation.y = lerp_angle(rig["root"].rotation.y, atan2(facing.x, facing.z), 12.0 * delta)
+		CharRig.animate(rig, walk_phase, spd_ratio, not is_on_floor(), delta)
 
 func _spawn_dash_ghost():
 	var main = get_node_or_null("/root/Main")
@@ -208,10 +206,17 @@ func _perform_melee_attack():
 	var main = get_node_or_null("/root/Main")
 	if main:
 		facing = main.get_cam_forward()
-		var mi0 = get_node_or_null("MeshInstance3D")
-		if mi0:
-			mi0.rotation.y = atan2(facing.x, facing.z)
+	if rig:
+		rig["root"].rotation.y = atan2(facing.x, facing.z)
+		CharRig.attack_swing(rig)
 	_attack_arc_visual()
+	# shove loose physics props caught in the swing
+	for b in get_tree().get_nodes_in_group("phys_props"):
+		var to_b = b.global_position - global_position
+		to_b.y = 0
+		if to_b.length() > 0.05 and to_b.length() < 3.2 and facing.angle_to(to_b.normalized()) < 1.2:
+			b.apply_central_impulse(to_b.normalized() * 7.0 + Vector3(0, 3.5, 0))
+			b.apply_torque_impulse(Vector3(randf_range(-3, 3), randf_range(-3, 3), randf_range(-3, 3)))
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	var hit_any = false
 	for e in enemies:

@@ -54,6 +54,7 @@ var warp_menu: Control
 var warp_button: Button
 var banner_label: Label
 var warp_vbox: VBoxContainer
+var skin_status: Label
 var death_shown: bool = false
 
 const BIOME_ENV: Dictionary = {
@@ -312,7 +313,13 @@ func _build_overlays():
 	_mk_label(t["vbox"], "HALCYON EXPANSE", 72)
 	_mk_label(t["vbox"], "lattice · resonance · the hollow", 26)
 	_mk_button(t["vbox"], "ENTER THE EXPANSE", _on_start_pressed)
-	_mk_label(t["vbox"], "stick move · ATK attack · buttons 1-7 abilities · DASH", 18)
+	skin_status = _mk_label(t["vbox"], "chassis: " + SkinDB.current(), 20)
+	var skin_row = HBoxContainer.new()
+	skin_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	t["vbox"].add_child(skin_row)
+	for sid in SkinDB.SKINS.keys():
+		_mk_button(skin_row, sid, _on_skin_pick.bind(sid))
+	_mk_label(t["vbox"], "stick move · ATK attack · buttons 1-7 abilities · DASH · JUMP · Q/E consumables", 18)
 
 	var p = _mk_screen(Color(0.02, 0.02, 0.04, 0.8))
 	pause_screen = p["screen"]
@@ -368,6 +375,13 @@ func show_banner(text: String, sub: String = ""):
 func _show_title():
 	flow = FLOW_TITLE
 	title_screen.visible = true
+
+func _on_skin_pick(sid: String):
+	SkinDB.select(sid)
+	if skin_status:
+		skin_status.text = "chassis: " + sid
+	if state.player and state.player.has_method("apply_skin"):
+		state.player.apply_skin(sid)
 
 func _on_start_pressed():
 	title_screen.visible = false

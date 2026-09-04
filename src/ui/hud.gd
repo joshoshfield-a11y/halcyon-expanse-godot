@@ -13,6 +13,14 @@ var player: PlayerController = null
 var xp_bar: ProgressBar
 var xp_label: Label
 var stats_label: Label
+var weapon_label: Label
+var weapon_icon: TextureRect
+var buff_label: Label
+var cons_labels: Dictionary = {}
+var cons_icons: Dictionary = {}
+var _last_wid: String = ""
+const CONS_META: Dictionary = {"stim": ["STIM", "icon_stim"], "shield": ["AEGIS", "icon_shield"],
+	"oc": ["OVERCHARGE", "icon_oc"], "xp": ["XP CORE", "icon_xp"]}
 
 func _ready():
 	# keep the status panel a fixed width instead of stretching full screen
@@ -36,6 +44,65 @@ func _ready():
 	stats_label = Label.new()
 	stats_label.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(stats_label)
+
+	# dark translucent backdrop panel behind the whole stack
+	var bg = PanelContainer.new()
+	var bg_sb = StyleBoxFlat.new()
+	bg_sb.bg_color = Color(0.02, 0.03, 0.06, 0.55)
+	bg_sb.corner_radius_top_left = 10
+	bg_sb.corner_radius_top_right = 10
+	bg_sb.corner_radius_bottom_left = 10
+	bg_sb.corner_radius_bottom_right = 10
+	bg_sb.content_margin_left = 10
+	bg_sb.content_margin_right = 10
+	bg_sb.content_margin_top = 8
+	bg_sb.content_margin_bottom = 8
+	bg.add_theme_stylebox_override("panel", bg_sb)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$MarginContainer.add_child(bg)
+	$MarginContainer.move_child(bg, 0)
+
+	# weapon row
+	var wrow = HBoxContainer.new()
+	weapon_icon = TextureRect.new()
+	weapon_icon.custom_minimum_size = Vector2(30, 30)
+	weapon_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	weapon_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	wrow.add_child(weapon_icon)
+	weapon_label = Label.new()
+	weapon_label.add_theme_font_size_override("font_size", 16)
+	wrow.add_child(weapon_label)
+	vbox.add_child(wrow)
+
+	# active buffs line
+	buff_label = Label.new()
+	buff_label.add_theme_font_size_override("font_size", 14)
+	buff_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
+	vbox.add_child(buff_label)
+
+	# consumable pouch with icons + counts
+	var crow = HBoxContainer.new()
+	for k in ["stim", "shield", "oc", "xp"]:
+		var ic = TextureRect.new()
+		ic.custom_minimum_size = Vector2(24, 24)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.texture = load("res://assets/icons/%s.png" % CONS_META[k][1])
+		crow.add_child(ic)
+		cons_icons[k] = ic
+		var lb = Label.new()
+		lb.add_theme_font_size_override("font_size", 14)
+		crow.add_child(lb)
+		cons_labels[k] = lb
+		var spacer = Control.new()
+		spacer.custom_minimum_size = Vector2(8, 1)
+		crow.add_child(spacer)
+	vbox.add_child(crow)
+	var hint = Label.new()
+	hint.text = "Q/E or USE buttons to consume"
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+	vbox.add_child(hint)
 
 	# bar styling
 	_style_bar(hp_bar, Color(0.75, 0.15, 0.15), Color(0.15, 0.05, 0.05))
@@ -82,6 +149,28 @@ func _process(delta):
 	xp_label.text = "LV %d · XP %d/%d" % [player.level, player.xp, player.xp_next()]
 
 	info_label.text = "Resonance: %s | Attunement: %d" % [player.resonance, player.attunement]
+
+	# weapon
+	if player.weapon_id != _last_wid:
+		_last_wid = player.weapon_id
+		var w = WeaponDB.get_w(_last_wid)
+		weapon_label.text = w["name"]
+		weapon_icon.texture = load("res://assets/icons/%s.png" % w["icon"])
+	# buffs
+	var buffs = []
+	if player.stim_t > 0:
+		buffs.append("STIM %.0fs" % player.stim_t)
+	if player.oc_t > 0:
+		buffs.append("OVERCHARGE %.0fs" % player.oc_t)
+	if player.shield_active:
+		buffs.append("AEGIS %.0fs" % player.shield_duration)
+	buff_label.text = "  ·  ".join(buffs)
+	buff_label.visible = buffs.size() > 0
+	# consumables
+	for k in cons_labels.keys():
+		var n = player.consumables.get(k, 0)
+		cons_labels[k].text = "x%d" % n
+		cons_icons[k].modulate = Color(1, 1, 1) if n > 0 else Color(0.35, 0.35, 0.4)
 	stats_label.text = "Kills: %d   Dash: %s" % [player.kills, "READY" if player.dash_cooldown <= 0 else "%.1fs" % player.dash_cooldown]
 
 	var main = get_node_or_null("/root/Main")

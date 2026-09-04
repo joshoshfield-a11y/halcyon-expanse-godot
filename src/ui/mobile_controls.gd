@@ -16,6 +16,8 @@ var look_last: Vector2 = Vector2.ZERO
 var look_accum: Vector2 = Vector2.ZERO
 var dash_btn: Button
 var jump_btn: Button
+var use1_btn: Button
+var use2_btn: Button
 var pause_btn: Button
 var pause_debounce: float = 0.0
 
@@ -51,6 +53,24 @@ func _ready():
 	jump_btn.position = Vector2(-180, -330)
 	jump_btn.pressed.connect(_on_jump_pressed)
 	add_child(jump_btn)
+
+	# consumable quick-use buttons
+	use1_btn = Button.new()
+	use1_btn.text = "USE 1"
+	use1_btn.add_theme_font_size_override("font_size", 18)
+	use1_btn.custom_minimum_size = Vector2(100, 90)
+	use1_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	use1_btn.position = Vector2(-430, -180)
+	use1_btn.pressed.connect(_on_use1_pressed)
+	add_child(use1_btn)
+	use2_btn = Button.new()
+	use2_btn.text = "USE 2"
+	use2_btn.add_theme_font_size_override("font_size", 18)
+	use2_btn.custom_minimum_size = Vector2(100, 90)
+	use2_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	use2_btn.position = Vector2(-430, -300)
+	use2_btn.pressed.connect(_on_use2_pressed)
+	add_child(use2_btn)
 
 	# pause button
 	pause_btn = Button.new()
@@ -127,6 +147,14 @@ func _press_button_at(pos: Vector2) -> bool:
 		_flash(dash_btn)
 		_on_dash_pressed()
 		return true
+	if use1_btn and use1_btn.get_global_rect().has_point(pos):
+		_flash(use1_btn)
+		_on_use1_pressed()
+		return true
+	if use2_btn and use2_btn.get_global_rect().has_point(pos):
+		_flash(use2_btn)
+		_on_use2_pressed()
+		return true
 	if jump_btn and jump_btn.get_global_rect().has_point(pos):
 		_flash(jump_btn)
 		_on_jump_pressed()
@@ -177,6 +205,16 @@ func _on_jump_pressed():
 	Input.action_press("jump")
 	await get_tree().create_timer(0.12).timeout
 	Input.action_release("jump")
+
+func _on_use1_pressed():
+	var player = get_tree().get_first_node_in_group("player")
+	if player and player.has_method("use_consumable"):
+		player.use_consumable(0)
+
+func _on_use2_pressed():
+	var player = get_tree().get_first_node_in_group("player")
+	if player and player.has_method("use_consumable"):
+		player.use_consumable(1)
 
 func _on_pause_pressed():
 	if pause_debounce > 0:

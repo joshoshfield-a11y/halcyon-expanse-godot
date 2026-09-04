@@ -22,6 +22,11 @@ var rig: Dictionary = {}
 var walk_phase: float = 0.0
 var floor_nrm: Vector3 = Vector3.UP
 var move_vel: Vector3 = Vector3.ZERO
+var weapon_id: String = "ember_blade"
+var consumables: Dictionary = {"stim": 0, "shield": 0, "oc": 0, "xp": 0}
+var stim_t: float = 0.0
+var oc_t: float = 0.0
+var bolts: Array = []
 var last_step_sign: int = 0
 var was_airborne: bool = false
 var fall_vy: float = 0.0
@@ -50,6 +55,7 @@ func _ready():
 	is_player = true
 	name = "Player"
 	add_to_group("player")
+	call_deferred("_post_ready")
 	var main = get_node_or_null("/root/Main")
 	if main:
 		combat = main.get_node_or_null("CombatSystem")
@@ -62,7 +68,8 @@ func _restyle():
 	var mi = get_node_or_null("MeshInstance3D")
 	if mi:
 		mi.visible = false
-	rig = CharRig.build(self, Color(0.95, 0.35, 0.1), Color(0.9, 0.45, 0.1), Color(0.18, 0.2, 0.26))
+	var pal = SkinDB.palette(SkinDB.current())
+	rig = CharRig.build(self, pal["body"], pal["glow"], pal["accent"])
 	# lattice trim ring at the waist
 	var ring = MeshInstance3D.new()
 	var tr = TorusMesh.new()
@@ -94,6 +101,9 @@ func _physics_process(delta):
 	_handle_abilities(delta)
 	attack_cooldown -= delta
 	dash_cooldown -= delta
+	stim_t -= delta
+	oc_t -= delta
+	_update_bolts(delta)
 	for k in ability_cooldowns.keys():
 		ability_cooldowns[k] -= delta
 	_update_shield_bubble()
@@ -145,7 +155,7 @@ func _handle_movement(delta):
 		if main:
 			input_dir = input_dir.rotated(Vector3.UP, main.cam_yaw)
 		facing = input_dir
-	planar = input_dir * speed
+	planar = input_dir * speed * (1.45 if stim_t > 0 else 1.0)
 	# acceleration smoothing — no more instant velocity snaps
 	var accel = 42.0 if planar.length() > move_vel.length() else 30.0
 	move_vel = move_vel.move_toward(planar, accel * delta)
@@ -235,8 +245,12 @@ func do_dash() -> bool:
 
 func _handle_combat(delta):
 	if Input.is_action_just_pressed("attack") and attack_cooldown <= 0:
-		attack_cooldown = 0.45
-		_perform_melee_attack()
+		var w = WeaponDB.get_w(weapon_id)
+		attack_cooldown = w["cd"]
+		if w["kind"] == "ranged":
+			_fire_bolt(w)
+		else:
+			_perform_melee_attack()
 
 func _perform_melee_attack():
 	var main = get_node_or_null("/root/Main")
@@ -246,6 +260,12 @@ func _perform_melee_attack():
 		rig["root"].rotation.y = atan2(facing.x, facing.z)
 		CharRig.attack_swing(rig)
 	_attack_arc_visual()
+	# smash breakable crates caught in the swing
+	for br in get_tree().get_nodes_in_group("breakables"):
+		var to_br = br.global_position - global_position
+		to_br.y = 0
+		if to_br.length() > 0.05 and to_br.length() < 3.0 and facing.angle_to(to_br.normalized()) < 1.2:
+			br.shatter()
 	# shove loose physics props caught in the swing
 	for b in get_tree().get_nodes_in_group("phys_props"):
 		var to_b = b.global_position - global_position
@@ -255,15 +275,17 @@ func _perform_melee_attack():
 			b.apply_torque_impulse(Vector3(randf_range(-3, 3), randf_range(-3, 3), randf_range(-3, 3)))
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	var hit_any = false
+	var w = WeaponDB.get_w(weapon_id)
+	var wmult = w["dmg"] * (1.6 if oc_t > 0 else 1.0)
 	for e in enemies:
 		if e.dead:
 			continue
 		var to_e = e.global_position - global_position
 		to_e.y = 0
 		var dist = to_e.length()
-		if dist > 0.01 and dist < 3.0 and facing.angle_to(to_e.normalized()) < 1.2:
-			var dmg = combat.melee_attack(self, e) if combat else 18
-			e.apply_knockback(to_e.normalized(), 7.0, 2.0)
+		if dist > 0.01 and dist < w["range"] and facing.angle_to(to_e.normalized()) < 1.2:
+			var dmg = combat.melee_attack(self, e, wmult) if combat else int(18 * wmult)
+			e.apply_knockback(to_e.normalized(), w["knock"], w["launch"])
 			hit_any = true
 			if main:
 				Juice.damage_text(main, e.global_position, str(dmg), Color(1, 0.9, 0.3))
@@ -299,6 +321,10 @@ func _attack_arc_visual():
 	tw.tween_callback(mi.queue_free)
 
 func _handle_abilities(delta):
+	if Input.is_action_just_pressed("use_1"):
+		use_consumable(0)
+	if Input.is_action_just_pressed("use_2"):
+		use_consumable(1)
 	for i in range(ABILITY_IDS.size()):
 		if Input.is_action_just_pressed("ability_%d" % (i + 1)):
 			cast_ability(ABILITY_IDS[i])
@@ -355,3 +381,124 @@ func _update_shield_bubble():
 		shield_bubble = null
 	if shield_bubble:
 		shield_bubble.rotation.y += get_physics_process_delta_time() * 2.0
+
+func _post_ready():
+	equip_weapon(weapon_id, true)
+
+func equip_weapon(wid: String, silent: bool = false):
+	if not WeaponDB.WEAPONS.has(wid):
+		return
+	weapon_id = wid
+	if rig:
+		WeaponDB.attach(rig, wid)
+	if not silent:
+		var w = WeaponDB.get_w(wid)
+		var main = get_node_or_null("/root/Main")
+		if main:
+			Juice.damage_text(main, global_position + Vector3(0, 1.6, 0), w["name"].to_upper(), w["color"], true)
+			Juice.burst(main, global_position + Vector3(0, 1, 0), w["color"], 16, 3.5, 0.5, 0.08)
+
+func add_consumable(kind: String):
+	if not consumables.has(kind):
+		return
+	if consumables[kind] >= 5:
+		lattice_charge = min(lattice_charge + 40.0, lattice_charge_max())
+		return
+	consumables[kind] += 1
+	var names = {"stim": "STIM", "shield": "AEGIS CELL", "oc": "OVERCHARGE", "xp": "XP CORE"}
+	var cols = {"stim": Color(1.0, 0.9, 0.2), "shield": Color(0.4, 0.6, 1.0), "oc": Color(1.0, 0.4, 0.9), "xp": Color(1.0, 0.8, 0.2)}
+	Juice.damage_text(get_parent(), global_position + Vector3(0, 1.4, 0), "+1 " + names[kind], cols[kind])
+
+func use_consumable(slot: int):
+	var order = ["stim", "shield", "oc", "xp"]
+	if slot < 0 or slot >= order.size():
+		return
+	var pick := ""
+	if consumables.get(order[slot], 0) > 0:
+		pick = order[slot]
+	else:
+		for k in order:
+			if consumables.get(k, 0) > 0:
+				pick = k
+				break
+	if pick == "":
+		var main0 = get_node_or_null("/root/Main")
+		if main0:
+			Juice.damage_text(main0, global_position, "EMPTY", Color(0.6, 0.6, 0.7))
+		return
+	consumables[pick] -= 1
+	var main = get_node_or_null("/root/Main")
+	match pick:
+		"stim":
+			stim_t = 10.0
+		"shield":
+			shield_active = true
+			shield_duration = 8.0
+		"oc":
+			oc_t = 10.0
+		"xp":
+			gain_xp(60)
+	if main:
+		var cols = {"stim": Color(1.0, 0.9, 0.2), "shield": Color(0.4, 0.6, 1.0),
+					"oc": Color(1.0, 0.4, 0.9), "xp": Color(1.0, 0.8, 0.2)}
+		Juice.ring(main, global_position, cols[pick], 3.0, 0.4)
+		var names2 = {"stim": "STIM!", "shield": "AEGIS UP", "oc": "OVERCHARGED", "xp": "+60 XP"}
+		Juice.damage_text(main, global_position + Vector3(0, 1.6, 0), names2[pick], Color(1, 1, 1), true)
+
+func apply_skin(skin_id: String):
+	SkinDB.select(skin_id)
+	if rig and rig.has("root") and is_instance_valid(rig["root"]):
+		rig["root"].queue_free()
+	_restyle()
+	equip_weapon(weapon_id, true)
+
+func _fire_bolt(w: Dictionary):
+	var main = get_node_or_null("/root/Main")
+	if main == null:
+		return
+	facing = main.get_cam_forward()
+	if rig:
+		rig["root"].rotation.y = atan2(facing.x, facing.z)
+		CharRig.attack_swing(rig)
+	var mi = MeshInstance3D.new()
+	var sm = SphereMesh.new()
+	sm.radius = 0.16
+	sm.height = 0.32
+	mi.mesh = sm
+	var mat = StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = w["color"]
+	mat.emission_enabled = true
+	mat.emission = w["color"]
+	mat.emission_energy_multiplier = 3.0
+	mi.material_override = mat
+	main.add_child(mi)
+	mi.global_position = global_position + Vector3(0, 1.3, 0) + facing * 0.6
+	bolts.append({"node": mi, "dir": facing, "speed": w["bolt_speed"], "life": 1.1,
+		"dmg": w["dmg"] * (1.6 if oc_t > 0 else 1.0), "color": w["color"]})
+
+func _update_bolts(delta: float):
+	for i in range(bolts.size() - 1, -1, -1):
+		var b = bolts[i]
+		if not is_instance_valid(b["node"]):
+			bolts.remove_at(i)
+			continue
+		var n: Node3D = b["node"]
+		n.position += b["dir"] * b["speed"] * delta
+		b["life"] -= delta
+		var hit = false
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e.dead:
+				continue
+			if n.global_position.distance_to(e.global_position + Vector3(0, 1, 0)) < 1.2:
+				var dmg = combat.melee_attack(self, e, b["dmg"]) if combat else 15
+				e.apply_knockback(b["dir"], 4.0, 0.0)
+				var main = get_node_or_null("/root/Main")
+				if main:
+					Juice.damage_text(main, e.global_position, str(dmg), Color(1, 0.9, 0.3))
+					Juice.burst(main, n.global_position, b["color"], 8, 3.0, 0.3, 0.06)
+				hit = true
+				break
+		if hit or b["life"] <= 0:
+			n.queue_free()
+			bolts.remove_at(i)

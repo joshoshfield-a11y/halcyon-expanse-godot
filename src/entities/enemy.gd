@@ -145,6 +145,12 @@ func die():
 		Pickup.spawn(main, global_position, "lc", 60 + xp_value)
 		if randf() < 0.3 or is_elite:
 			Pickup.spawn(main, global_position + Vector3(0.8, 0, 0.4), "hp", 25)
+		# drop table: consumables sometimes, elites always drop a weapon
+		if randf() < 0.14:
+			var kinds = ["stim", "shield", "oc", "xp"]
+			Pickup.spawn(main, global_position + Vector3(-0.7, 0, 0.3), kinds[randi_range(0, 3)], 1)
+		if is_elite:
+			Pickup.spawn(main, global_position + Vector3(0, 0, -0.9), "weapon:" + WeaponDB.random_id(), 0)
 	var tw = create_tween()
 	tw.tween_property(self, "scale", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(self, "position:y", position.y - 0.5, 0.35)

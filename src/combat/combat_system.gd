@@ -3,8 +3,8 @@ class_name CombatSystem
 
 var display_name: String = "CombatSystem"
 
-func melee_attack(attacker: Actor, target: GameEntity) -> int:
-	var base = 18 + attacker.get_damage_bonus()
+func melee_attack(attacker: Actor, target: GameEntity, mult: float = 1.0) -> int:
+	var base = int((18 + attacker.get_damage_bonus()) * mult)
 	if attacker is PlayerController:
 		base += (attacker.level - 1) * 3
 	# ±15% variance, 12% crit at 1.8x

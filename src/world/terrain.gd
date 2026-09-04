@@ -221,6 +221,32 @@ func _scatter_props(root: Node3D, biome: String) -> Array:
 			_make_crystal_prop(root, Vector3(x, y, z), rng)
 		else:
 			_make_ruin(root, Vector3(x, y, z), rng)
+	# breakable supply crates
+	for i in range(7):
+		var cx = rng.randf_range(-HALF + 10, HALF - 10)
+		var cz = rng.randf_range(-HALF + 10, HALF - 10)
+		if Vector2(cx, cz).length() < 9.0:
+			continue
+		_make_crate(root, Vector3(cx, height_at(cx, cz), cz), rng)
+	# obelisks, mushroom clusters, pylons
+	for i in range(4):
+		var ox = rng.randf_range(-HALF + 14, HALF - 14)
+		var oz = rng.randf_range(-HALF + 14, HALF - 14)
+		if Vector2(ox, oz).length() < 14.0:
+			continue
+		_make_obelisk(root, Vector3(ox, height_at(ox, oz), oz), rng)
+	for i in range(9):
+		var mx = rng.randf_range(-HALF + 8, HALF - 8)
+		var mz = rng.randf_range(-HALF + 8, HALF - 8)
+		if Vector2(mx, mz).length() < 10.0:
+			continue
+		_make_mushrooms(root, Vector3(mx, height_at(mx, mz), mz), rng)
+	for i in range(3):
+		var px2 = rng.randf_range(-HALF + 16, HALF - 16)
+		var pz2 = rng.randf_range(-HALF + 16, HALF - 16)
+		if Vector2(px2, pz2).length() < 16.0:
+			continue
+		_make_pylon(root, Vector3(px2, height_at(px2, pz2), pz2), rng)
 	for i in range(12):
 		var bx = rng.randf_range(-HALF + 12, HALF - 12)
 		var bz = rng.randf_range(-HALF + 12, HALF - 12)
@@ -373,3 +399,139 @@ func _make_boulder(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
 	rb.add_child(mi)
 	root.add_child(rb)
 	rb.global_position = pos
+
+func _make_crate(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
+	var br = Breakable.new()
+	root.add_child(br)
+	br.position = pos + Vector3(0, 0.45, 0)
+	br.rotation.y = rng.randf() * TAU
+	var cs = CollisionShape3D.new()
+	var bs = BoxShape3D.new()
+	bs.size = Vector3(0.9, 0.9, 0.9)
+	cs.shape = bs
+	br.add_child(cs)
+	var mi = MeshInstance3D.new()
+	var bm = BoxMesh.new()
+	bm.size = Vector3(0.9, 0.9, 0.9)
+	mi.mesh = bm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.5, 0.38, 0.2)
+	mat.roughness = 0.85
+	var dtex = load("res://assets/textures/ground_detail.png")
+	if dtex:
+		mat.albedo_texture = dtex
+	mi.material_override = mat
+	br.add_child(mi)
+	# glowing seam so it reads as lootable
+	var seam = MeshInstance3D.new()
+	var sm2 = BoxMesh.new()
+	sm2.size = Vector3(0.94, 0.08, 0.94)
+	seam.mesh = sm2
+	var smat = StandardMaterial3D.new()
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.albedo_color = Color(1.0, 0.8, 0.3)
+	smat.emission_enabled = true
+	smat.emission = Color(1.0, 0.75, 0.2)
+	smat.emission_energy_multiplier = 1.6
+	seam.material_override = smat
+	br.add_child(seam)
+
+func _make_obelisk(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
+	var ob = Node3D.new()
+	root.add_child(ob)
+	ob.position = pos
+	var mi = MeshInstance3D.new()
+	var cm = CylinderMesh.new()
+	cm.top_radius = 0.25
+	cm.bottom_radius = 0.55
+	cm.height = 3.6
+	cm.radial_segments = 4
+	mi.mesh = cm
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.2, 0.2, 0.26)
+	mat.roughness = 0.6
+	mat.metallic = 0.3
+	mi.material_override = mat
+	ob.add_child(mi)
+	mi.position.y = 1.8
+	var rune = MeshInstance3D.new()
+	var rm = BoxMesh.new()
+	rm.size = Vector3(0.12, 2.6, 0.12)
+	rune.mesh = rm
+	var rmat = StandardMaterial3D.new()
+	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var hue = rng.randf_range(0.45, 0.75)
+	rmat.albedo_color = Color.from_hsv(hue, 0.8, 1.0)
+	rmat.emission_enabled = true
+	rmat.emission = Color.from_hsv(hue, 0.8, 1.0)
+	rmat.emission_energy_multiplier = 2.2
+	rune.material_override = rmat
+	ob.add_child(rune)
+	rune.position = Vector3(0, 1.9, 0.42)
+	ob.rotation.y = rng.randf() * TAU
+
+func _make_mushrooms(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
+	var cluster = Node3D.new()
+	root.add_child(cluster)
+	cluster.position = pos
+	var hue = rng.randf_range(0.5, 0.85)
+	for i in range(rng.randi_range(3, 6)):
+		var stem = MeshInstance3D.new()
+		var stm = CylinderMesh.new()
+		stm.top_radius = 0.05
+		stm.bottom_radius = 0.08
+		var h = 0.25 + rng.randf() * 0.35
+		stm.height = h
+		stem.mesh = stm
+		var smat = StandardMaterial3D.new()
+		smat.albedo_color = Color(0.8, 0.78, 0.7)
+		stem.material_override = smat
+		cluster.add_child(stem)
+		var off = Vector3(rng.randf_range(-0.8, 0.8), h * 0.5, rng.randf_range(-0.8, 0.8))
+		stem.position = off
+		var cap = MeshInstance3D.new()
+		var cm = SphereMesh.new()
+		cm.radius = 0.14 + rng.randf() * 0.12
+		cm.height = cm.radius * 1.2
+		cap.mesh = cm
+		var cmat = StandardMaterial3D.new()
+		cmat.albedo_color = Color.from_hsv(hue, 0.7, 0.9)
+		cmat.emission_enabled = true
+		cmat.emission = Color.from_hsv(hue, 0.8, 0.9)
+		cmat.emission_energy_multiplier = 1.4
+		cap.material_override = cmat
+		cluster.add_child(cap)
+		cap.position = off + Vector3(0, h * 0.5 + cm.radius * 0.35, 0)
+
+func _make_pylon(root: Node3D, pos: Vector3, rng: RandomNumberGenerator):
+	var py = Node3D.new()
+	root.add_child(py)
+	py.position = pos
+	var base = MeshInstance3D.new()
+	var bm = CylinderMesh.new()
+	bm.top_radius = 0.5
+	bm.bottom_radius = 0.8
+	bm.height = 1.2
+	base.mesh = bm
+	var bmat = StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.22, 0.23, 0.3)
+	bmat.metallic = 0.5
+	bmat.roughness = 0.5
+	base.material_override = bmat
+	py.add_child(base)
+	base.position.y = 0.6
+	var core = MeshInstance3D.new()
+	var cm = BoxMesh.new()
+	cm.size = Vector3(0.5, 0.5, 0.5)
+	core.mesh = cm
+	var cmat = StandardMaterial3D.new()
+	cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cmat.albedo_color = Color(0.3, 0.9, 1.0)
+	cmat.emission_enabled = true
+	cmat.emission = Color(0.2, 0.8, 1.0)
+	cmat.emission_energy_multiplier = 2.6
+	core.material_override = cmat
+	py.add_child(core)
+	core.position.y = 1.9
+	core.rotation.z = PI / 4
+	core.rotation.y = rng.randf() * TAU

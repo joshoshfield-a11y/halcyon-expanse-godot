@@ -209,6 +209,7 @@ func _behavior_chase(dt: float, dist: float, player_pos: Vector3, spd: float) ->
 		if attack_cooldown <= 0:
 			attack_cooldown = 1.5
 			state_machine = "attack"
+			_lunge()
 	return Vector3.ZERO
 
 func _behavior_patrol(dt: float, dist: float, player_pos: Vector3, spd: float) -> Vector3:
@@ -248,3 +249,11 @@ func _behavior_swarm(dt: float, dist: float, player_pos: Vector3, spd: float) ->
 	if dist < detection_range:
 		return _chase_vel(player_pos, spd * 1.25)
 	return Vector3.ZERO
+
+func _lunge():
+	if not rig:
+		return
+	var root: Node3D = rig["root"]
+	var tw = root.create_tween()
+	tw.tween_property(root, "position:z", 0.38, 0.1).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(root, "position:z", 0.0, 0.28).set_trans(Tween.TRANS_SPRING)

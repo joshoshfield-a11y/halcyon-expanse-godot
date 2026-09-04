@@ -76,14 +76,49 @@ static func build(parent: Node3D, body: Color, glow: Color, accent: Color = Colo
 	_box(leg_r, Vector3(0.22, 0.86, 0.24), Vector3(0, -0.43, 0), dark)
 	_box(leg_r, Vector3(0.24, 0.12, 0.34), Vector3(0, -0.86, 0.05), suit)
 
-	return {"root": root, "torso": torso, "head": head,
+	# shoulder pads
+	_box(root, Vector3(0.26, 0.14, 0.28), Vector3(-0.44, 1.76, 0), dark)
+	_box(root, Vector3(0.26, 0.14, 0.28), Vector3(0.44, 1.76, 0), dark)
+	# backpack
+	_box(root, Vector3(0.4, 0.44, 0.2), Vector3(0, 1.45, -0.28), dark)
+	_box(root, Vector3(0.3, 0.06, 0.06), Vector3(0, 1.58, -0.39), glow_m)
+
+	# cape: pivot at upper back, flows with movement in animate()
+	var cape = Node3D.new()
+	root.add_child(cape)
+	cape.position = Vector3(0, 1.7, -0.22)
+	var cape_mi = MeshInstance3D.new()
+	var pm = PlaneMesh.new()
+	pm.size = Vector2(0.55, 0.95)
+	pm.subdivide_width = 3
+	pm.subdivide_depth = 3
+	cape_mi.mesh = pm
+	var cape_mat = StandardMaterial3D.new()
+	cape_mat.albedo_color = glow.darkened(0.25)
+	cape_mat.emission_enabled = true
+	cape_mat.emission = glow
+	cape_mat.emission_energy_multiplier = 0.35
+	cape_mat.roughness = 0.8
+	cape_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	cape_mi.material_override = cape_mat
+	cape.add_child(cape_mi)
+	cape_mi.position = Vector3(0, -0.48, 0)
+	cape_mi.rotation.x = PI / 2 * 0.12
+
+	return {"root": root, "torso": torso, "head": head, "cape": cape,
 			"arm_l": arm_l, "arm_r": arm_r, "leg_l": leg_l, "leg_r": leg_r,
 			"flash_mats": [suit, dark], "base_glow": glow}
 
 # Procedural locomotion. speed_ratio 0..1, phase advances with distance travelled.
-static func animate(rig: Dictionary, phase: float, speed_ratio: float, airborne: bool, dt: float):
+static func animate(rig: Dictionary, phase: float, speed_ratio: float, airborne: bool, dt: float, lean: float = 0.0):
 	var sw = sin(phase)
 	var cw = cos(phase)
+	# sideways lean when turning + cape flow (shared across poses)
+	rig["root"].rotation.z = lerp(rig["root"].rotation.z, clamp(lean, -0.22, 0.22), 8.0 * dt)
+	if rig.has("cape"):
+		var cape_target = 0.12 + speed_ratio * 1.05 + (0.9 if airborne else 0.0)
+		rig["cape"].rotation.x = lerp(rig["cape"].rotation.x, cape_target, 5.0 * dt)
+		rig["cape"].rotation.z = sin(Time.get_ticks_msec() / 1000.0 * 3.1) * 0.08 * (0.3 + speed_ratio)
 	if airborne:
 		# tucked jump pose
 		rig["leg_l"].rotation.x = lerp(rig["leg_l"].rotation.x, -0.7, 10.0 * dt)
@@ -129,6 +164,13 @@ static func flash(rig: Dictionary, strength: float = 3.5, dur: float = 0.12):
 	for m in rig["flash_mats"]:
 		m.emission = rig["base_glow"] if m == rig["flash_mats"][0] else Color(0, 0, 0)
 		m.emission_energy_multiplier = 0.5 if m == rig["flash_mats"][0] else 0.0
+
+# Landing squash-and-stretch.
+static func squash(rig: Dictionary, amount: float = 0.7):
+	var root: Node3D = rig["root"]
+	var tw = root.create_tween()
+	tw.tween_property(root, "scale", Vector3(1.15, amount, 1.15), 0.07).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(root, "scale", Vector3(1, 1, 1), 0.28).set_trans(Tween.TRANS_SPRING)
 
 # Rigidbody debris chunks that bounce on the terrain, then shrink away.
 static func spawn_debris(parent: Node, pos: Vector3, color: Color, count: int = 5, power: float = 5.0):

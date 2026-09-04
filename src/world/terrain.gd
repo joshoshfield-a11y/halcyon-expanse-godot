@@ -9,6 +9,35 @@ const HEIGHT_AMP: float = 5.5
 var noise: FastNoiseLite
 var moisture: FastNoiseLite
 
+const SPLAT_SHADER: String = """
+shader_type spatial;
+render_mode cull_disabled;
+
+uniform sampler2D tex_grass : filter_linear_mipmap, repeat_enable;
+uniform sampler2D tex_rock : filter_linear_mipmap, repeat_enable;
+uniform sampler2D tex_dirt : filter_linear_mipmap, repeat_enable;
+
+varying float v_slope;
+varying float v_h;
+
+void vertex() {
+	v_slope = 1.0 - NORMAL.y;
+	v_h = VERTEX.y;
+}
+
+void fragment() {
+	vec3 g = texture(tex_grass, UV).rgb;
+	vec3 r = texture(tex_rock, UV * 1.7).rgb;
+	vec3 d = texture(tex_dirt, UV * 1.3).rgb;
+	float rock_w = smoothstep(0.18, 0.38, v_slope);
+	float dirt_w = smoothstep(0.07, 0.2, v_slope) * (1.0 - rock_w);
+	vec3 tex = mix(mix(g, d, dirt_w), r, rock_w);
+	ALBEDO = COLOR.rgb * tex * 1.55;
+	ROUGHNESS = 0.92;
+	SPECULAR = 0.15;
+}
+"""
+
 const GROUND: Dictionary = {
 	"temperate":  {"low": Color(0.18, 0.4, 0.14), "high": Color(0.3, 0.5, 0.2), "rock": Color(0.4, 0.38, 0.35), "dirt": Color(0.35, 0.3, 0.2)},
 	"volcanic":   {"low": Color(0.12, 0.09, 0.09), "high": Color(0.25, 0.14, 0.1), "rock": Color(0.2, 0.16, 0.15), "dirt": Color(0.5, 0.16, 0.05)},
@@ -102,14 +131,14 @@ func build(parent: Node, biome: String) -> Dictionary:
 	arr[Mesh.ARRAY_INDEX] = indices
 	var mesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	var mat = StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.92
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var gtex = load("res://assets/textures/ground_detail.png")
-	if gtex:
-		mat.albedo_texture = gtex
-	mesh.surface_set_material(0, mat)
+	var shader = Shader.new()
+	shader.code = SPLAT_SHADER
+	var smat = ShaderMaterial.new()
+	smat.shader = shader
+	smat.set_shader_parameter("tex_grass", load("res://assets/textures/tex_grass.png"))
+	smat.set_shader_parameter("tex_rock", load("res://assets/textures/tex_rock.png"))
+	smat.set_shader_parameter("tex_dirt", load("res://assets/textures/tex_dirt.png"))
+	mesh.surface_set_material(0, smat)
 
 	var mi = MeshInstance3D.new()
 	mi.mesh = mesh

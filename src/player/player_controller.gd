@@ -21,6 +21,11 @@ var ghost_timer: float = 0.0
 var rig: Dictionary = {}
 var walk_phase: float = 0.0
 var floor_nrm: Vector3 = Vector3.UP
+var move_vel: Vector3 = Vector3.ZERO
+var last_step_sign: int = 0
+var was_airborne: bool = false
+var fall_vy: float = 0.0
+var prev_yaw: float = 0.0
 
 const GRAVITY: float = 22.0
 const DASH_SPEED: float = 18.0
@@ -140,7 +145,11 @@ func _handle_movement(delta):
 		if main:
 			input_dir = input_dir.rotated(Vector3.UP, main.cam_yaw)
 		facing = input_dir
-		planar = input_dir * speed
+	planar = input_dir * speed
+	# acceleration smoothing — no more instant velocity snaps
+	var accel = 42.0 if planar.length() > move_vel.length() else 30.0
+	move_vel = move_vel.move_toward(planar, accel * delta)
+	planar = move_vel
 
 	# steep-slope slide: use last frame's floor normal
 	if grounded and floor_nrm.y < 0.75 and floor_nrm.y > 0.05:
@@ -154,14 +163,41 @@ func _handle_movement(delta):
 	else:
 		floor_nrm = Vector3.UP
 
-	# rig: face travel direction + run cycle
+	# rig: face travel direction + run cycle + movement juice
 	if rig:
 		var planar_vel = Vector3(velocity.x, 0, velocity.z)
 		var spd_ratio = clamp(planar_vel.length() / speed, 0.0, 1.0)
 		walk_phase += planar_vel.length() * delta * 1.6
 		if planar.length() > 0.1:
 			rig["root"].rotation.y = lerp_angle(rig["root"].rotation.y, atan2(facing.x, facing.z), 12.0 * delta)
-		CharRig.animate(rig, walk_phase, spd_ratio, not is_on_floor(), delta)
+		# turn lean
+		var yaw_now = rig["root"].rotation.y
+		var yaw_rate = wrapf(yaw_now - prev_yaw, -PI, PI) / max(delta, 0.0001)
+		prev_yaw = yaw_now
+		CharRig.animate(rig, walk_phase, spd_ratio, not is_on_floor(), delta, clamp(-yaw_rate * 0.05, -0.2, 0.2))
+		# footstep dust each stride
+		if is_on_floor() and spd_ratio > 0.35:
+			var step_sign = 1 if sin(walk_phase) > 0 else -1
+			if step_sign != last_step_sign:
+				Juice.burst(get_parent(), global_position + Vector3(0, 0.12, 0), Color(0.55, 0.5, 0.42), 4, 1.1, 0.3, 0.05)
+			last_step_sign = step_sign
+		else:
+			last_step_sign = 0
+
+	# landing squash + dust
+	if not is_on_floor():
+		fall_vy = min(fall_vy, vy)
+		was_airborne = true
+	elif was_airborne:
+		was_airborne = false
+		if rig:
+			CharRig.squash(rig, 0.65 if fall_vy < -7.0 else 0.85)
+		if fall_vy < -7.0:
+			Juice.burst(get_parent(), global_position + Vector3(0, 0.15, 0), Color(0.55, 0.5, 0.42), 12, 2.6, 0.4, 0.07)
+			var main2 = get_node_or_null("/root/Main")
+			if main2:
+				main2.add_shake(0.12)
+		fall_vy = 0.0
 
 func _spawn_dash_ghost():
 	var main = get_node_or_null("/root/Main")

@@ -59,4 +59,4 @@ scenes/
 
 ## License
 
-MIT — Built by Taylor C. Mattheisen (Skit / Dogbytes)
+Licensed under the Halcyon Expanse Commercial License v1.0.\n\n- **Personal / non-commercial use**: Free with attribution. See [LICENSE](LICENSE) for full terms.\n- **Commercial use**: Requires a paid license. Contact Taylor C. Mattheisen for inquiries.
